@@ -22,7 +22,9 @@ func main() {
 
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/download/", downloadHandler)
-	
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "Hello, world!")
+	})
 	port := ":8080"
 	fmt.Printf("Server starting on port %s\n", port)
 	fmt.Printf("Upload endpoint: http://localhost%s/upload\n", port)

@@ -12,13 +12,14 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run client.go <jpeg-file-path>")
-		fmt.Println("Example: go run client.go photo.jpg")
+		fmt.Println("Usage: go run client.go <server-url> <jpeg-file-path>")
+		fmt.Println("Example: go run client.go https://server.com/upload photo.jpg")
 		os.Exit(1)
 	}
 
-	filePath := os.Args[1]
-	serverURL := "http://localhost:8080/upload"
+	serverBase := os.Args[1]
+	filePath := os.Args[2]
+	serverURL := fmt.Sprintf("%s/upload", serverBase)
 
 	// Validate file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
