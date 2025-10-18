@@ -20,11 +20,14 @@ func main() {
 		log.Fatal("Failed to create uploads directory:", err)
 	}
 
+	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/download/", downloadHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Hello, world!")
 	})
+	http.HandleFunc("/preview/", previewHandler)
 	port := ":8280"
 	fmt.Printf("Server starting on port %s\n", port)
 	fmt.Printf("Upload endpoint: http://localhost%s/upload\n", port)
@@ -33,6 +36,18 @@ func main() {
 	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
+}
+
+func previewHandler(w http.ResponseWriter, r *http.Request) {
+	filename := filepath.Base(r.URL.Path)
+	html := fmt.Sprintf(`<!DOCTYPE html>
+	<html>
+	<body>
+		<img src="/uploads/%s.jpg" alt="Preview" style="max-width: 256px;">
+	</body>
+	</html>`, filename)
+
+	fmt.Fprint(w, html)
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {

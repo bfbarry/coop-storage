@@ -1,0 +1,23 @@
+FROM golang:1.22-alpine
+
+WORKDIR /app
+
+RUN go install github.com/githubnemo/CompileDaemon@latest
+
+# Copy go mod files
+COPY go.mod  ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Create uploads directory
+RUN mkdir -p /app/uploads
+
+# Expose port
+EXPOSE 8280
+
+# Use air for live reload
+CMD ["CompileDaemon", "--build=go build -o main .", "--command=./main"]
