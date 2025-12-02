@@ -1,37 +1,37 @@
 version: '3.8'
 
 services:
-  go-server:
+  osd-server:
     build:
-      context: .
+      context: ../
       dockerfile: Dockerfile.dev
-    container_name: upload-service-server
+    container_name: osd-server
     ports:
       - "8280:8280"
     volumes:
-      - ./uploads:/app/uploads
+      - ./store:/app/store
       - .:/app
     restart: unless-stopped
     networks:
-      - upload-network
+      - storage-network
 
   nginx:
     image: nginx:alpine
-    container_name: upload-service-nginx
+    container_name: nginx
     ports:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./uploads:/app/uploads:ro
+      - ./store:/app/store:ro
     depends_on:
       - go-server
     restart: unless-stopped
     networks:
-      - upload-network
+      - storage-network
 
 networks:
-  upload-network:
+  storage-network:
     driver: bridge
 
 volumes:
-  uploads:
+  store:

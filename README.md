@@ -34,3 +34,5 @@ Auth flow  (see [here](https://chatgpt.com/share/68f3cb5b-08e4-8006-909f-28d6603
 
 # Resources
 - Series of articles on [replication](https://www.enjoyalgorithms.com/blog/storage-and-redundancy)
+- https://github.com/google/go-cloud
+- https://medium.com/@kamal.maiti/object-based-storage-architecture-b841e5842124

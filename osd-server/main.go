@@ -9,18 +9,13 @@ import (
 	"path/filepath"
 )
 
-const (
-	uploadDir = "./uploads"
-	maxUploadSize = 10 << 20 // 10 MB
-)
-
 func main() {
-	// Create uploads directory if it doesn't exist
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		log.Fatal("Failed to create uploads directory:", err)
+	// Create store directory if it doesn't exist
+	if err := os.MkdirAll(UPLOADDIR, 0755); err != nil {
+		log.Fatal("Failed to create store directory:", err)
 	}
 
-	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+	http.Handle("/store/", http.StripPrefix("/store/", http.FileServer(http.Dir("./store"))))
 
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/download/", downloadHandler)
@@ -28,12 +23,11 @@ func main() {
 		fmt.Fprint(w, "Hello, world!")
 	})
 	http.HandleFunc("/preview/", previewHandler)
-	port := ":8280"
-	fmt.Printf("Server starting on port %s\n", port)
-	fmt.Printf("Upload endpoint: http://localhost%s/upload\n", port)
-	fmt.Printf("Download endpoint: http://localhost%s/download/{filename}\n", port)
+	fmt.Printf("Server starting on PORT %s\n", PORT)
+	fmt.Printf("Upload endpoint: http://localhost%s/upload\n", PORT)
+	fmt.Printf("Download endpoint: http://localhost%s/download/{filename}\n", PORT)
 	
-	if err := http.ListenAndServe(port, nil); err != nil {
+	if err := http.ListenAndServe(PORT, nil); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }
@@ -43,7 +37,7 @@ func previewHandler(w http.ResponseWriter, r *http.Request) {
 	html := fmt.Sprintf(`<!DOCTYPE html>
 	<html>
 	<body>
-		<img src="/uploads/%s.jpg" alt="Preview" style="max-width: 256px;">
+		<img src="/store/%s.jpg" alt="Preview" style="max-width: 256px;">
 	</body>
 	</html>`, filename)
 
@@ -57,9 +51,9 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Limit request body size
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	r.Body = http.MaxBytesReader(w, r.Body, MAXUPLOADSIZE)
 	
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+	if err := r.ParseMultipartForm(MAXUPLOADSIZE); err != nil {
 		http.Error(w, "File too large or invalid form data", http.StatusBadRequest)
 		return
 	}
@@ -71,27 +65,8 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Validate file extension
-	ext := filepath.Ext(header.Filename)
-	if ext != ".jpg" && ext != ".jpeg" {
-		http.Error(w, "Only JPEG files are allowed", http.StatusBadRequest)
-		return
-	}
-
-	// Create destination file
-	destPath := filepath.Join(uploadDir, header.Filename)
-	dest, err := os.Create(destPath)
-	if err != nil {
-		http.Error(w, "Failed to create file on server", http.StatusInternalServerError)
-		return
-	}
-	defer dest.Close()
-
-	// Copy file contents
-	if _, err := io.Copy(dest, file); err != nil {
-		http.Error(w, "Failed to save file", http.StatusInternalServerError)
-		return
-	}
+	o := ObjectFile{}
+	o.Write(&file, header)
 
 	log.Printf("File uploaded successfully: %s\n", header.Filename)
 	
@@ -112,7 +87,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := filepath.Join(uploadDir, filename)
+	filePath := filepath.Join(UPLOADDIR, filename)
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -129,7 +104,8 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Set headers
-	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	// TODO switch for certain types to be able to preview e.g., image/jpeg
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
 	// Copy file to response
