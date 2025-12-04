@@ -10,7 +10,7 @@ type DB struct{
 	db *badger.DB
 }
 
-var DBInst* DB
+var DBInst *DB
 
 func InitDb() {
 

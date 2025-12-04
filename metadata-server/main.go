@@ -14,11 +14,20 @@ type MetadataPOST struct {
 	FileName string `json:"FileName"`
 }
 
+
+// client -> server (TODO: unused)
+type ReadFilter struct {
+	Query string `json:"query"`
+	FileType string `json:"FileType"`
+}
+
 func main() {
 	InitDb()
 	defer CloseDb()
-	http.HandleFunc("/write_object", createObject)
-	http.HandleFunc("/read_object", readObject)
+	http.HandleFunc("/write_meta", createMetaObject)
+	http.HandleFunc("/read_meta", readMetaObject)
+	http.HandleFunc("/write_object", requestWriteObject)
+	http.HandleFunc("/read_object", requestReadObject)
 	fmt.Printf("Server starting on PORT %s\n", PORT)
 	
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", PORT), nil); err != nil {
@@ -26,34 +35,58 @@ func main() {
 	}
 }
 
-
-func readObject(w http.ResponseWriter, r *http.Request) {
+// Called by client
+func requestWriteObject(w http.ResponseWriter, r *http.Request) {
+	//TODO: consume an API token to verify access
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	id := r.URL.Query().Get("id")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("tokenplaceholder"))
 
-	var metaObject MetaObject
-	metaObject.ID = id
-	if err := metaObject.Read(); err != nil {
-		http.Error(w, fmt.Sprintf("Key objid:%s not found", id), http.StatusNotFound)
+}
+
+func requestReadObject(w http.ResponseWriter, r *http.Request) {
+	//TODO: consume an API token to verify access
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// TODO: use ReadFilter
+	page := 0 //r.URL.Query().Get("page")
+	userTMP := r.URL.Query().Get("user")
 
-	w.Header().Set("Content-Type", "application/json")
-	o, err := json.Marshal(metaObject)
+	// body, err := io.ReadAll(r.Body)
+	// if err != nil {
+	// 	http.Error(w, "Failed to read request body", http.StatusBadRequest)
+	// 	return
+	// }
+	// defer r.Body.Close()
+	// if err := json.Unmarshal(body, &filter); err != nil {
+	// 	http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+	// 	return
+	// }
+
+	var rr ReadRequest
+	rr.PageNum = page
+
+	rr.Read(userTMP)
+	jo, err := json.Marshal(rr)
 	if err != nil {
 		http.Error(w, "could not marshal object", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(o)
+	w.Write(jo)
+
 }
 
 
-func createObject(w http.ResponseWriter, r *http.Request) {
+//called by the OSD Server
+func createMetaObject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -86,4 +119,30 @@ func createObject(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprint(w, "success")
+}
+
+// For Dev Purposes
+func readMetaObject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.URL.Query().Get("id")
+
+	var metaObject MetaObject
+	metaObject.ID = id
+	if err := metaObject.Read(); err != nil {
+		http.Error(w, fmt.Sprintf("Key objid:%s not found", id), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	o, err := json.Marshal(metaObject)
+	if err != nil {
+		http.Error(w, "could not marshal object", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(o)
 }
