@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine
+FROM golang:1.23-alpine
 
 WORKDIR /app
 
@@ -13,11 +13,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
-
 # Expose port
-EXPOSE 8280
+EXPOSE 7676
 
 # Use air for live reload
 CMD ["CompileDaemon", "--build=go build -o main .", "--command=./main"]

@@ -1,22 +1,93 @@
-package metadataserver
-import (
+package main
 
+import (
+	"log"
+	"github.com/dgraph-io/badger/v4"
 )
 
 
-type MetaObject struct {
-	id string
-	owner string
-	fileType string
-	fileName string
-	deleteFlag bool
-
-	// TODO: implement these for file integrity checks and multipart upload
-	// offset int32
-	// length int32
+type DB struct{
+	db *badger.DB
 }
 
-func (o *MetaObject) Create() (error) {
-	//TODO
+var DBInst* DB
+
+func InitDb() {
+
+	opts := badger.DefaultOptions(DB_PATH)
+
+	// opts.Logger = nil
+
+	db, err := badger.Open(opts)
+	DBInst = &DB {db}
+
+	if err != nil {
+		log.Fatalf("Error opening BadgerDB: %v", err)
+	}
+
+}
+
+func CloseDb() {
+	if err := DBInst.db.Close(); err != nil {
+		log.Printf("Error closing BadgerDB: %v", err)
+	}
+}
+
+func (self *DB) Update(key []byte, val []byte) (error) {
+	log.Printf("UPDATE: Writing key: %s (bytes: %v), value length: %d", string(key), key, len(val))
+
+	err := self.db.Update(func(txn *badger.Txn) error {
+		err := txn.SetEntry(badger.NewEntry(key, val))
+		if err != nil {
+			log.Printf("UPDATE: Error setting entry for key %s: %v", string(key), err)
+			return err
+		}
+		log.Printf("UPDATE: Successfully set key: %s", string(key))
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("UPDATE: Transaction failed for key %s: %v", string(key), err)
+		return err
+	}
+	
+	if err := self.db.Sync(); err != nil {
+		log.Printf("UPDATE: Sync failed for key %s: %v", string(key), err)
+		return err
+	}
+	
+	log.Printf("UPDATE: Transaction committed and synced for key: %s", string(key))
 	return nil
+}
+
+func (self *DB) Read(key []byte) ([]byte, error){
+	var retrievedValue []byte
+
+	log.Printf("READ: Attempting to read key: %s (bytes: %v)", string(key), key)
+	
+	err := self.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(key)
+		
+		if err != nil {
+			log.Printf("Error getting key %s: %v", string(key), err)
+			return err
+		}
+
+		return item.Value(func(val []byte) error {
+			retrievedValue = append([]byte{}, val...)
+			log.Printf("READ: Successfully read key: %s, value length: %d", string(key), len(retrievedValue))
+			return nil
+		})
+	})
+
+	if err == badger.ErrKeyNotFound {
+		log.Printf("Key %s not found in database.", string(key))
+		return nil, badger.ErrKeyNotFound
+	}
+	if err != nil {
+		log.Printf("Read failed for key %s: %v", string(key), err)
+		return nil, err
+	}
+
+	return retrievedValue, nil
 }

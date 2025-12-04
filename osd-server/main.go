@@ -27,7 +27,7 @@ func main() {
 	fmt.Printf("Upload endpoint: http://localhost%s/upload\n", PORT)
 	fmt.Printf("Download endpoint: http://localhost%s/download/{filename}\n", PORT)
 	
-	if err := http.ListenAndServe(PORT, nil); err != nil {
+	if err := http.ListenAndServe(fmt.Sprint(":%i", PORT), nil); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }

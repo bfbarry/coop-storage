@@ -2,3 +2,6 @@
 *.jpeg
 *.txt
 .env
+*.sum
+*/db/*
+.DS_Store

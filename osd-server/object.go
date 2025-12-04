@@ -18,7 +18,7 @@ type ObjectFile struct {
 }
 
 type MetadataPOST struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 	FileType string `json:"fileType"`
 	FileName string `json:"fileName"`
 }
@@ -41,7 +41,7 @@ func (o *ObjectFile) Write(file *multipart.File, header *multipart.FileHeader) (
 
 	// write to metadata server
 	metadata := MetadataPOST{
-		Id: id,
+		ID: id,
 		FileType: filepath.Ext(header.Filename),
 		FileName: header.Filename,
 	}

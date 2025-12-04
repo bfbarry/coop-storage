@@ -13,7 +13,7 @@ var (
 )
 
 func init() {
-	PORT = getEnv("PORT", ":8280")
+	PORT = getEnv("PORT", "8280")
 	UPLOADDIR = getEnv("UPLOAD_DIR", "./uploads")
 	
 	maxSizeStr := getEnv("MAX_UPLOAD_SIZE", "10485760")

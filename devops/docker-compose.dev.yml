@@ -1,37 +1,56 @@
-version: '3.8'
-
 services:
+
+  metadata-server:
+    build:
+      context: ../metadata-server
+      dockerfile: Dockerfile.dev
+    container_name: metadata-server
+    ports:
+      - "7676:7676"
+    volumes:
+      - ../metadata-server:/app
+      - ../metadata-server/db:/app/db
+    restart: unless-stopped
+    networks:
+      - storage-network
+
   osd-server:
     build:
-      context: ../
+      context: ../osd-server
       dockerfile: Dockerfile.dev
     container_name: osd-server
     ports:
       - "8280:8280"
     volumes:
-      - ./store:/app/store
-      - .:/app
+      - ../osd-server:/app
+      - ../osd-server/store:/app/store
     restart: unless-stopped
     networks:
       - storage-network
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./store:/app/store:ro
-    depends_on:
-      - go-server
-    restart: unless-stopped
-    networks:
-      - storage-network
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: nginx
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - ./store:/app/store:ro
+  #   depends_on:
+  #     - go-server
+  #   restart: unless-stopped
+  #   networks:
+  #     - storage-network
+
+  # ingress: # NOTE: alternative to nginx for dev
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.ingress.dev
+  #   env_file: ../.env
+  #   ports:
+  #     - "4041:4040"
+  #   command: /ngrok.sh
 
 networks:
   storage-network:
     driver: bridge
-
-volumes:
-  store:
