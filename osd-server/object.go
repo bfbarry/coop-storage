@@ -1,17 +1,27 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
 	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
 )
 
 // ObjectFile represents a file stored on the object storage server.
@@ -30,7 +40,7 @@ type MetadataPOST struct {
 
 // Write stores a file upload by assigning it a new UUID, registering its
 // metadata with the metadata server, and saving the file contents (along with
-// an image preview for supported image types) to the upload directory.
+// an image preview for supported file types) to the upload directory.
 // It returns an error if any step fails.
 func (o *ObjectFile) Write(file *multipart.File, header *multipart.FileHeader) error {
 	// TODO: parallel writes
@@ -67,29 +77,33 @@ func (o *ObjectFile) Write(file *multipart.File, header *multipart.FileHeader) e
 	}
 	log.Printf("Hello %s", string(bodyBytes))
 
-	// For supported image types, decode and resize a thumbnail preview,
-	// saving it to UPLOADPVW as <id>.jpg before writing the original file.
-	imageTypes := map[string]bool{
-		".jpeg": true,
-		".jpg":  true,
-		".png":  true,
-		".gif":  true,
-	}
-	
-
-	if imageTypes[metadata.FileType] {
-		img, err := imaging.Decode(*file)
-		if err != nil {
-			return fmt.Errorf("failed to decode image: %w", err)
+	// Generate a preview based on file type.
+	previewPath := filepath.Join(UPLOADPVW, metadata.ID+".jpg")
+	switch metadata.FileType {
+	case ".jpeg", ".jpg", ".png", ".gif":
+		if err := generateImagePreview(file, previewPath); err != nil {
+			return fmt.Errorf("failed to generate image preview: %w", err)
 		}
-		preview := imaging.Resize(img, PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT, imaging.Lanczos)
-		previewPath := filepath.Join(UPLOADPVW, metadata.ID+".jpg")
-		if err := imaging.Save(preview, previewPath); err != nil {
-			return fmt.Errorf("failed to save preview: %w", err)
-		}
-		// Seek back to the start so io.Copy below reads the full file.
 		if _, err := (*file).Seek(0, io.SeekStart); err != nil {
 			return fmt.Errorf("failed to seek file: %w", err)
+		}
+	case ".txt":
+		if err := generateTextPreview(file, previewPath); err != nil {
+			return fmt.Errorf("failed to generate text preview: %w", err)
+		}
+		if _, err := (*file).Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("failed to seek file: %w", err)
+		}
+	case ".docx":
+		if err := generateDocxPreview(file, previewPath); err != nil {
+			return fmt.Errorf("failed to generate docx preview: %w", err)
+		}
+		if _, err := (*file).Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("failed to seek file: %w", err)
+		}
+	default:
+		if err := generateDefaultPreview(metadata.FileType, previewPath); err != nil {
+			return fmt.Errorf("failed to generate default preview: %w", err)
 		}
 	}
 
@@ -106,4 +120,98 @@ func (o *ObjectFile) Write(file *multipart.File, header *multipart.FileHeader) e
 	}
 
 	return nil
+}
+
+// generateImagePreview decodes the image, resizes it to thumbnail dimensions,
+// and saves it as a JPEG at destPath.
+func generateImagePreview(file *multipart.File, destPath string) error {
+	img, err := imaging.Decode(*file)
+	if err != nil {
+		return fmt.Errorf("failed to decode image: %w", err)
+	}
+	preview := imaging.Resize(img, PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT, imaging.Lanczos)
+	if err := imaging.Save(preview, destPath); err != nil {
+		return fmt.Errorf("failed to save preview: %w", err)
+	}
+	return nil
+}
+
+// generateTextPreview reads plain text from the file and renders the first
+// visible lines onto a white image, saved as a JPEG at destPath.
+func generateTextPreview(file *multipart.File, destPath string) error {
+	content, err := io.ReadAll(*file)
+	if err != nil {
+		return fmt.Errorf("failed to read text file: %w", err)
+	}
+	return renderTextToImage(string(content), destPath)
+}
+
+// generateDocxPreview extracts plain text from a .docx archive and renders it
+// as a preview image saved at destPath.
+func generateDocxPreview(file *multipart.File, destPath string) error {
+	content, err := io.ReadAll(*file)
+	if err != nil {
+		return fmt.Errorf("failed to read docx file: %w", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
+	if err != nil {
+		return fmt.Errorf("failed to open docx as zip: %w", err)
+	}
+
+	var text string
+	for _, f := range zr.File {
+		if f.Name == "word/document.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				return fmt.Errorf("failed to open document.xml: %w", err)
+			}
+			xmlBytes, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				return fmt.Errorf("failed to read document.xml: %w", err)
+			}
+			re := regexp.MustCompile(`<[^>]+>`)
+			text = re.ReplaceAllString(string(xmlBytes), " ")
+			break
+		}
+	}
+
+	return renderTextToImage(text, destPath)
+}
+
+// generateDefaultPreview creates a gray tile with the file extension label
+// for unsupported file types, saved as a JPEG at destPath.
+func generateDefaultPreview(fileType string, destPath string) error {
+	label := strings.ToUpper(strings.TrimPrefix(fileType, "."))
+	if label == "" {
+		label = "FILE"
+	}
+	return renderTextToImage(label, destPath)
+}
+
+// renderTextToImage draws text lines onto a white canvas and saves it as a
+// JPEG at destPath. Lines that exceed the canvas height are truncated.
+func renderTextToImage(text string, destPath string) error {
+	img := image.NewRGBA(image.Rect(0, 0, PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
+
+	d := &font.Drawer{
+		Dst:  img,
+		Src:  image.NewUniform(color.Black),
+		Face: basicfont.Face7x13,
+	}
+
+	const lineHeight = 14
+	y := 13
+	for _, line := range strings.Split(text, "\n") {
+		if y > PREVIEW_MAX_HEIGHT {
+			break
+		}
+		d.Dot = fixed.P(2, y)
+		d.DrawString(line)
+		y += lineHeight
+	}
+
+	return imaging.Save(img, destPath)
 }
