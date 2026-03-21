@@ -75,6 +75,8 @@ func (o *ObjectFile) Write(file *multipart.File, header *multipart.FileHeader) e
 		".png":  true,
 		".gif":  true,
 	}
+	
+
 	if imageTypes[metadata.FileType] {
 		img, err := imaging.Decode(*file)
 		if err != nil {
