@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 var (
@@ -20,6 +23,7 @@ var (
 type Config struct {
 	Server ServerConfig
 	RustFS RustFSConfig
+	Auth   AuthConfig
 }
 
 type ServerConfig struct {
@@ -36,7 +40,22 @@ type RustFSConfig struct {
 	UsePathStyle    bool // must be true for RustFS / MinIO
 }
 
+type AuthConfig struct {
+	ClerkSecretKey string
+}
+
 func init() {
+	// Load .env file from the metadata-server directory
+	// Use filepath to get the directory where this config package is located
+	// and go up to find the .env file
+	envPath := filepath.Join("metadata-server", ".env")
+	if err := godotenv.Load(envPath); err != nil {
+		// If .env doesn't exist, try loading from current directory
+		if err := godotenv.Load(".env"); err != nil {
+			log.Printf("Warning: .env file not found (tried %s and .env), using system environment variables", envPath)
+		}
+	}
+
 	PORT = getEnv("PORT", "7678")
 	UPLOADDIR = getEnv("UPLOAD_DIR", "./uploads")
 
@@ -74,6 +93,9 @@ func init() {
 			// Region:          getEnv("RUSTFS_REGION", "us-east-1"),
 			PresignDuration: time.Duration(presignMins) * time.Minute,
 			UsePathStyle:    true,
+		},
+		Auth: AuthConfig{
+			ClerkSecretKey: requireEnv("CLERK_SECRET_KEY"),
 		},
 	}
 }
