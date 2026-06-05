@@ -195,6 +195,7 @@ type Index int
 const (
 	User Index = iota
 	Object
+	Directory
 )
 
 func NewDBKey(index Index, id string) DBKey {
