@@ -9,6 +9,7 @@ import (
 
 	"os"
 
+	"github.com/bfbarry/coop-storage/metadata-server/auth"
 	"github.com/bfbarry/coop-storage/metadata-server/config"
 	"github.com/bfbarry/coop-storage/metadata-server/controllers"
 	"github.com/bfbarry/coop-storage/metadata-server/storage"
@@ -61,10 +62,14 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	rustFsClient := storage.NewClient(config.GLOBAL_CONFIG.RustFS)
+	rustFsClient := storage.NewRustFSClient(config.GLOBAL_CONFIG.RustFS)
 
 	uploader := controllers.NewUploadHandler(rustFsClient)
 	downloader := controllers.NewDownloadHandler(rustFsClient)
+
+	// Initialize Clerk auth provider
+	clerkProvider := auth.NewClerkProvider(config.GLOBAL_CONFIG.Auth.ClerkSecretKey)
+	authMiddleware := auth.AuthMiddleWare(clerkProvider)
 
 	// uploader.Register("/upload/presign", mux)
 	// downloader.Register("/download/presign", mux)
@@ -79,11 +84,14 @@ func main() {
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	mux.HandleFunc("/upload/presign", uploader.HandlePresign)
+	// Apply auth middleware to presign route
+	mux.Handle("/upload/presign", authMiddleware(http.HandlerFunc(uploader.HandlePresign)))
 	mux.HandleFunc("/download/presign/", downloader.HandlePresign)
-	mux.HandleFunc("/write_meta", createMetaObject)
+	// Apply auth middleware to metadata write endpoint
+	mux.Handle("/write_meta", authMiddleware(http.HandlerFunc(createMetaObject)))
 	mux.HandleFunc("/read_meta", readMetaObject)
-	mux.HandleFunc("/read_all_meta", readAllMetaObjects)
+	// Apply auth middleware to read_all_meta to use authenticated user
+	mux.Handle("/read_all_meta", authMiddleware(http.HandlerFunc(readAllMetaObjects)))
 
 	// client facing
 	// http.HandleFunc("/write_object", requestWriteObject) // maybe this one is just auth?
@@ -103,21 +111,6 @@ func main() {
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.PORT), handler); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
-}
-
-// Called by client
-func requestWriteObject(w http.ResponseWriter, r *http.Request) {
-	//TODO: consume an API token to verify access
-	// TODO: figure out if what other useful data this controller can return
-	//  is really necessary
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("tokenplaceholder"))
-
 }
 
 // TODO: shouldn't be able to edit things like owner or filetype,
@@ -150,7 +143,7 @@ func UpdateMetaObject(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("success"))
 }
 
-// called by the OSD Server
+// called by the OSD Server or client after successful upload
 func createMetaObject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -171,11 +164,18 @@ func createMetaObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract authenticated user ID from context (set by auth middleware)
+	identity := auth.GetUserIdentity(r.Context())
+	if identity == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var metaObject MetaObject
 	metaObject.ID = metaPost.ID
 	metaObject.FileType = metaPost.FileType
 	metaObject.FileName = metaPost.FileName
-	metaObject.Owner = metaPost.Owner // TODO: get this from auth
+	metaObject.Owner = identity.UserID // Get owner from authenticated user
 	metaObject.DeleteFlag = false
 
 	if err := metaObject.Create(); err != nil {
@@ -213,20 +213,20 @@ func readMetaObject(w http.ResponseWriter, r *http.Request) {
 	w.Write(o)
 }
 
-// Read all metadata objects for a particular user
+// Read all metadata objects for the authenticated user
 func readAllMetaObjects(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get user from query parameter
-	// TODO: get this from auth token instead
-	user := r.URL.Query().Get("user")
-	if user == "" {
-		http.Error(w, "user parameter is required", http.StatusBadRequest)
+	// Extract authenticated user ID from context (set by auth middleware)
+	identity := auth.GetUserIdentity(r.Context())
+	if identity == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	user := identity.UserID
 
 	// Read the user index to get all object IDs
 	uKey := NewDBKey(User, user)

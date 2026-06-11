@@ -10,6 +10,7 @@ import (
 
 	"log"
 
+	"github.com/bfbarry/coop-storage/metadata-server/auth"
 	"github.com/google/uuid"
 )
 
@@ -46,9 +47,7 @@ func NewUploadHandler(store Uploader) *UploadHandler {
 	return &UploadHandler{store: store}
 }
 
-// func (h *UploadHandler) Register(url string, mux *http.ServeMux) {
-// 	mux.HandleFunc(url, h.handlePresign)
-// }
+// Routes to request to CRUD the OSD
 
 func (h *UploadHandler) HandlePresign(w http.ResponseWriter, r *http.Request) {
 	var req PresignRequest
@@ -62,9 +61,14 @@ func (h *UploadHandler) HandlePresign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(auth): replace "anonymous" with the authenticated user's ID once
-	// auth middleware is wired up.
-	userID := "anonymous"
+	// Extract authenticated user ID from context (set by auth middleware)
+	identity := auth.GetUserIdentity(r.Context())
+	if identity == nil {
+		writeError(w, http.StatusUnauthorized, "user not authenticated")
+		return
+	}
+	userID := identity.UserID
+
 	objectKey := buildObjectKey(userID, req.Filename)
 
 	uploadURL, expiresAt, err := h.store.PresignUpload(r.Context(), objectKey, req.ContentType, req.ContentLength)

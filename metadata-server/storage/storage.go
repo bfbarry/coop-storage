@@ -18,7 +18,7 @@ type Client struct {
 	cfg       config.RustFSConfig
 }
 
-func NewClient(cfg config.RustFSConfig) *Client {
+func NewRustFSClient(cfg config.RustFSConfig) *Client {
 	s3Client := s3.NewFromConfig(
 		aws.Config{
 			// Region: cfg.Region,
