@@ -10,4 +10,4 @@ main.o
 osd-server/store/*
 tests/data/*
 noice.log
-client/node_modules
+client/my-vue-app/node_modules
