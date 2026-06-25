@@ -21,9 +21,11 @@ var (
 )
 
 type Config struct {
-	Server ServerConfig
-	RustFS RustFSConfig
-	Auth   AuthConfig
+	Server    ServerConfig
+	RustFS    RustFSConfig
+	Auth      AuthConfig
+	Qdrant    QdrantConfig
+	Embedding EmbeddingConfig
 }
 
 type ServerConfig struct {
@@ -44,6 +46,21 @@ type AuthConfig struct {
 	ClerkSecretKey string
 }
 
+type QdrantConfig struct {
+	Host       string // e.g. "qdrant"  (service name in compose) / "localhost"
+	Port       int    // 6334 (gRPC)
+	Collection string // e.g. "file_chunks"
+	APIKey     string // empty for local
+}
+
+type EmbeddingConfig struct {
+	Provider  string // "openai" (covers Ollama/TEI/LocalAI) | "huggingface"
+	BaseURL   string // local: http://embedder:11434/v1 ; remote: https://api.openai.com/v1
+	Model     string // e.g. "nomic-embed-text"
+	APIKey    string // empty for local
+	Dimension int    // MUST match the model (nomic-embed-text = 768)
+}
+
 func init() {
 	// Load .env file from the metadata-server directory
 	// Use filepath to get the directory where this config package is located
@@ -59,7 +76,7 @@ func init() {
 	PORT = getEnv("PORT", "7678")
 	UPLOADDIR = getEnv("UPLOAD_DIR", "./uploads")
 
-	//TODO: check this
+	// TODO: check this
 	maxSizeStr := getEnv("MAX_UPLOAD_SIZE", "1000")
 	maxSize, err := strconv.ParseInt(maxSizeStr, 10, 64)
 	if err != nil {
@@ -84,7 +101,7 @@ func init() {
 		Server: ServerConfig{
 			Port: getEnv("PORT", "8080"),
 		},
-		//checking if env vars are set in RustFSConfig constructor
+		// checking if env vars are set in RustFSConfig constructor
 		RustFS: RustFSConfig{
 			Endpoint:  getEnv("RUSTFS_ENDPOINT", "http://127.0.0.1:9000"),
 			AccessKey: getEnv("RUSTFS_ACCESS_KEY", "rustfsadmin"),
@@ -96,6 +113,20 @@ func init() {
 		},
 		Auth: AuthConfig{
 			ClerkSecretKey: requireEnv("CLERK_SECRET_KEY"),
+		},
+
+		Qdrant: QdrantConfig{
+			Host:       getEnv("QDRANT_HOST", "localhost"),
+			Port:       atoiOr(getEnv("QDRANT_PORT", "6334"), 6334),
+			Collection: getEnv("QDRANT_COLLECTION", "file_chunks"),
+			APIKey:     getEnv("QDRANT_API_KEY", ""),
+		},
+		Embedding: EmbeddingConfig{
+			Provider:  getEnv("EMBEDDING_PROVIDER", "openai"),
+			BaseURL:   getEnv("EMBEDDING_BASE_URL", "http://localhost:11434/v1"),
+			Model:     getEnv("EMBEDDING_MODEL", "nomic-embed-text"),
+			APIKey:    getEnv("EMBEDDING_API_KEY", ""),
+			Dimension: atoiOr(getEnv("EMBEDDING_DIM", "768"), 768),
 		},
 	}
 }
@@ -111,6 +142,14 @@ func requireEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
 		panic(fmt.Sprintf("required env var %q is not set", key))
+	}
+	return v
+}
+
+func atoiOr(s string, fallback int) int {
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return fallback
 	}
 	return v
 }

@@ -1,6 +1,5 @@
 name: cloop
 services:
-
   metadata-server:
     build:
       context: ../metadata-server
@@ -20,8 +19,8 @@ services:
     container_name: osd-server
     restart: unless-stopped
     ports:
-      - "9000:9000"   # S3 API endpoint
-      - "9001:9001"   # Web console
+      - "9000:9000" # S3 API endpoint
+      - "9001:9001" # Web console
     environment:
       # Single-node single-disk (SNSD) — fine for local dev
       RUSTFS_VOLUMES: /data
@@ -63,7 +62,7 @@ services:
 volumes:
   rustfs-data:
   rustfs-logs:
-      
+
   # nginx:
   #   image: nginx:alpine
   #   container_name: nginx

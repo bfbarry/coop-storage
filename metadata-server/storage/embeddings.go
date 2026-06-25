@@ -14,7 +14,7 @@ func NewEmbedder(cfg config.HuggingFaceConfig)*Embedder
 // POSTs {"inputs": text} to e.endpoint
 // sets header: Authorization: Bearer {e.apiKey}
 // HF returns [][]float32 — take [0] as the single 
-embedding
+//embedding
 // uses net/http from stdlib only
 func (e *Embedder) Embed(ctx context.Context, text
 string) ([]float32, error)
