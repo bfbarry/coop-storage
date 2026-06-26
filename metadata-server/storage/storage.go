@@ -118,3 +118,14 @@ func (c *Client) PresignUpdate(
 	// S3 updates are just overwrites — same as a PUT
 	return c.PresignUpload(ctx, objectKey, contentType, contentLength)
 }
+// TODO:implement GetObject, which gets the bytes of the object after asking the
+// FS
+func (c *Client) GetObject(ctx context.Context, objectKey string) ([]byte, string, error) {
+	out, err := c.s3.GetObject(ctx,
+		&s3.GetObjectInput{
+			Bucket: aws.String(c.cfg.Bucket),
+			Key:    aws.String(objectKey),
+		})
+
+      // return io.ReadAll(out.Body), *out.ContentType, err  (with size guard)
+}
