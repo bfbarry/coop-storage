@@ -64,6 +64,16 @@ func main() {
 
 	rustFsClient := storage.NewRustFSClient(config.GLOBAL_CONFIG.RustFS)
 
+	embedder, err := storage.NewEmbedder(config.GLOBAL_CONFIG.Embedding)
+	if err != nil {log.Fatal(err)}
+
+	vdb, err := storage.NewVectorDB(config.GLOBAL_CONFIG.Qdrant, config.GLOBAL_CONFIG.Embedding.Dimension)
+	if err != nil {log.Fatal(err)}
+	if err := vdb.EnsureCollection(context.Background());
+	err != nil {log.Fatal(err)}
+
+	indexer := storage.NewIndexer(rustFsClient, embedder, vdb)
+
 	uploader := controllers.NewUploadHandler(rustFsClient)
 	downloader := controllers.NewDownloadHandler(rustFsClient)
 
