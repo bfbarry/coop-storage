@@ -102,6 +102,7 @@ func main() {
 	mux.HandleFunc("/read_meta", readMetaObject)
 	// Apply auth middleware to read_all_meta to use authenticated user
 	mux.Handle("/read_all_meta", authMiddleware(http.HandlerFunc(readAllMetaObjects)))
+	mux.Handle("/search", authMiddleware(http.HandlerFunc(searchHandler)))
 
 	// client facing
 	// http.HandleFunc("/write_object", requestWriteObject) // maybe this one is just auth?
@@ -193,9 +194,26 @@ func createMetaObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	go func() {
+		ctx := context.Background() // detached from request
+		if err := indexer.IndexObject(ctx, metaObject.ID, metaObject.Owner, metaObject.FileName); err != nil {
+			log.Printf("indexing failed for %s: %v", metaObject.ID, err)
+		}
+	}()
+
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprint(w, "success")
 }
+
+  func searchHandler(w http.ResponseWriter, r *http.Request) {
+      identity := auth.GetUserIdentity(r.Context())   //
+  owner = identity.UserID
+      q := r.URL.Query().Get("q")
+      vec, _ := embedder.Embed(r.Context(), q)
+      hits, _ := vdb.Search(r.Context(), identity.UserID, vec, k)
+      // de-dup hits by ObjectID, optionally hydrate FileName via MetaObject.Read, return JSON
+  }
+
 
 // For Dev Purposes
 func readMetaObject(w http.ResponseWriter, r *http.Request) {
