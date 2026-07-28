@@ -22,7 +22,7 @@ cd coop-storage
 
 ```bash
 cd devops
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 This starts:
@@ -53,6 +53,10 @@ cd tests
 sh full_test.sh
 ```
 Expected output:
+
+# TODO
+
+large exports
 
 metadata-server
 osd-server

@@ -1,33 +1,19 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-
 	"os"
 
 	"github.com/bfbarry/coop-storage/metadata-server/auth"
 	"github.com/bfbarry/coop-storage/metadata-server/config"
 	"github.com/bfbarry/coop-storage/metadata-server/controllers"
+	"github.com/bfbarry/coop-storage/metadata-server/relational_db"
 	"github.com/bfbarry/coop-storage/metadata-server/storage"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
-
-// TODO: figure out cleaner way to share types across containers?
-type MetadataPOST struct {
-	ID       string `json:"id"`
-	Owner    string `json:"owner"`
-	FileType string `json:"fileType"`
-	FileName string `json:"fileName"`
-}
-
-// client -> server (TODO: unused)
-type ReadFilter struct {
-	Query    string `json:"query"`
-	FileType string `json:"FileType"`
-}
 
 // CORS middleware to allow cross-origin requests
 func corsMiddleware(next http.Handler) http.Handler {
@@ -51,8 +37,6 @@ func main() {
 		log.SetFlags(0)
 		log.SetOutput(os.Stdout)
 	}
-	InitDb()
-	defer CloseDb()
 	// TODO: add more config to http server e.g,
 	// 		Addr:         ":" + config.Server.Port,
 	// Handler:      mux,
@@ -60,214 +44,53 @@ func main() {
 	// WriteTimeout: 10 * time.Second,
 	// IdleTimeout:  60 * time.Second
 
-	mux := http.NewServeMux()
+	relational_db.PSQL.Start()
+	defer relational_db.PSQL.Stop()
+
+	app := controllers.NewApp(controllers.NewMetaRepo(relational_db.PSQL))
 
 	rustFsClient := storage.NewRustFSClient(config.GLOBAL_CONFIG.RustFS)
-
 	uploader := controllers.NewUploadHandler(rustFsClient)
 	downloader := controllers.NewDownloadHandler(rustFsClient)
 
-	// Initialize Clerk auth provider
 	clerkProvider := auth.NewClerkProvider(config.GLOBAL_CONFIG.Auth.ClerkSecretKey)
 	authMiddleware := auth.AuthMiddleWare(clerkProvider)
 
-	// uploader.Register("/upload/presign", mux)
-	// downloader.Register("/download/presign", mux)
+	r := chi.NewRouter()
+	r.Use(corsMiddleware)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-			return
-		}
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	// Apply auth middleware to presign route
-	mux.Handle("/upload/presign", authMiddleware(http.HandlerFunc(uploader.HandlePresign)))
-	mux.HandleFunc("/download/presign/", downloader.HandlePresign)
-	// Apply auth middleware to metadata write endpoint
-	mux.Handle("/write_meta", authMiddleware(http.HandlerFunc(createMetaObject)))
-	mux.HandleFunc("/read_meta", readMetaObject)
-	// Apply auth middleware to read_all_meta to use authenticated user
-	mux.Handle("/read_all_meta", authMiddleware(http.HandlerFunc(readAllMetaObjects)))
+	r.With(authMiddleware).Post("/upload/presign", uploader.HandlePresign)
+	r.Get("/download/presign/*", downloader.HandlePresign)
 
-	// client facing
-	// http.HandleFunc("/write_object", requestWriteObject) // maybe this one is just auth?
-	// http.HandleFunc("/prepare_osd_request", uploader.)
+	// Metadata
+	r.Post("/metadata", app.PostMetadata)
+	r.Get("/metadata/home", app.GetChildrenHome)
+	r.Get("/metadata/{id}", app.GetMetadata)
+	r.Get("/metadata", app.GetChildren)
+	r.Put("/metadata/{id}", app.PutMetadata)
+	r.Delete("/metadata/{id}", app.DeleteMetadata)
 
-	// // called by osd
-	// http.HandleFunc("/write_meta", createMetaObject)
-	// http.HandleFunc("/update_meta", UpdateMetaObject)
-	// // dev only
-	// http.HandleFunc("/read_meta", readMetaObject)
-	// http.HandleFunc("/run_gc", runGc)
+	// Accounts
+	r.Post("/accounts", app.PostAccount)
+	r.Get("/accounts/{id}", app.GetAccount)
+	r.Put("/accounts/{id}", app.PutAccount)
+	r.Delete("/accounts/{id}", app.DeleteAccount)
+
+	// Permissions
+	r.Post("/permissions", app.PostPermission)
+	r.Get("/permissions", app.GetPermission)
+	r.Delete("/permissions/{id}", app.DeletePermission)
+
 	log.Printf("Server starting on PORT %s\n", config.PORT)
-
-	// Wrap mux with CORS middleware
-	handler := corsMiddleware(mux)
-
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.PORT), handler); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.PORT), r); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
-}
-
-// TODO: shouldn't be able to edit things like owner or filetype,
-// so we shall create Base objects w/ composition to make type definition easier
-func UpdateMetaObject(w http.ResponseWriter, r *http.Request) {
-	//TODO: consume an API token to verify access
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var currMeta MetaObject
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-	if err := json.Unmarshal(body, &currMeta); err != nil {
-		http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
-		return
-	}
-
-	err = currMeta.Update()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Method not allowed, %v", err), http.StatusInternalServerError)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("success"))
-}
-
-// called by the OSD Server or client after successful upload
-func createMetaObject(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	log.Printf("createMetaObject invoked")
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var metaPost MetadataPOST
-	if err := json.Unmarshal(body, &metaPost); err != nil {
-		http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
-		return
-	}
-
-	// Extract authenticated user ID from context (set by auth middleware)
-	identity := auth.GetUserIdentity(r.Context())
-	if identity == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var metaObject MetaObject
-	metaObject.ID = metaPost.ID
-	metaObject.FileType = metaPost.FileType
-	metaObject.FileName = metaPost.FileName
-	metaObject.Owner = identity.UserID // Get owner from authenticated user
-	metaObject.DeleteFlag = false
-
-	if err := metaObject.Create(); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create object %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprint(w, "success")
-}
-
-// For Dev Purposes
-func readMetaObject(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	id := r.URL.Query().Get("id")
-
-	var metaObject MetaObject
-	metaObject.ID = id
-	if err := metaObject.Read(); err != nil {
-		http.Error(w, fmt.Sprintf("Key objid:%s not found", id), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	o, err := json.Marshal(metaObject)
-	if err != nil {
-		http.Error(w, "could not marshal object", http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write(o)
-}
-
-// Read all metadata objects for the authenticated user
-func readAllMetaObjects(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Extract authenticated user ID from context (set by auth middleware)
-	identity := auth.GetUserIdentity(r.Context())
-	if identity == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	user := identity.UserID
-
-	// Read the user index to get all object IDs
-	uKey := NewDBKey(User, user)
-	objectMapJSON, err := DBInst.Read(uKey)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("User %s not found or has no objects", user), http.StatusNotFound)
-		return
-	}
-
-	// Parse the user index (map of filename -> object ID)
-	objectMap := make(map[string]string)
-	if err := json.Unmarshal(objectMapJSON, &objectMap); err != nil {
-		http.Error(w, "Failed to parse user index", http.StatusInternalServerError)
-		return
-	}
-
-	// Retrieve all metadata objects for this user
-	metaObjects := make([]MetaObject, 0, len(objectMap))
-	for _, objID := range objectMap {
-		var metaObject MetaObject
-		metaObject.ID = objID
-		if err := metaObject.Read(); err != nil {
-			log.Printf("Warning: Failed to read object %s for user %s: %v", objID, user, err)
-			continue // Skip objects that can't be read
-		}
-		metaObjects = append(metaObjects, metaObject)
-	}
-
-	// Return the array of metadata objects
-	w.Header().Set("Content-Type", "application/json")
-	response, err := json.Marshal(metaObjects)
-	if err != nil {
-		http.Error(w, "Failed to marshal response", http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write(response)
-}
-
-func runGc(w http.ResponseWriter, r *http.Request) {
-	StartGarbageCollector()
-	log.Printf("garbage collection ran")
-	w.Write([]byte("ok"))
 }

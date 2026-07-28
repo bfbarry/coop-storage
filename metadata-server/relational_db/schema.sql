@@ -21,6 +21,16 @@ CREATE INDEX idx_metadata_owner_id ON metadata(owner_id);
 CREATE INDEX idx_metadata_parent_id ON metadata(parent_id);
 CREATE INDEX idx_metadata_active ON metadata(id) WHERE deleted_at IS NULL;
 
+-- Uniqueness within a folder
+CREATE UNIQUE INDEX uq_metadata_name_in_folder
+    ON metadata(parent_id, name)
+    WHERE parent_id IS NOT NULL AND deleted_at IS NULL;
+    
+-- Uniqueness at home/root level
+CREATE UNIQUE INDEX uq_metadata_name_at_root
+    ON metadata(owner_id, name)
+    WHERE parent_id IS NULL AND deleted_at IS NULL;
+
 CREATE TABLE permissions (
     id SERIAL PRIMARY KEY,
     metadata_id INT NOT NULL REFERENCES metadata(id) ON DELETE CASCADE,

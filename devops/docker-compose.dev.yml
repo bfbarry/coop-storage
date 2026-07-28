@@ -76,7 +76,7 @@ services:
 volumes:
   rustfs-data:
   rustfs-logs:
-      
+  postgres_data:   
   # nginx:
   #   image: nginx:alpine
   #   container_name: nginx
