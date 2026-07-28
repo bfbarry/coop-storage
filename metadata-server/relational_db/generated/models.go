@@ -19,6 +19,7 @@ type Metadata struct {
 	ID        int32              `json:"id"`
 	ParentID  *int32             `json:"parent_id"`
 	OwnerID   int32              `json:"owner_id"`
+	ObjectKey *string            `json:"object_key"`
 	FileType  string             `json:"file_type"`
 	IsFile    *bool              `json:"is_file"`
 	Name      string             `json:"name"`

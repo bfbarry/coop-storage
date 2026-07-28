@@ -10,24 +10,26 @@ import (
 )
 
 const createMetadata = `-- name: CreateMetadata :one
-INSERT INTO metadata (parent_id, owner_id, file_type, is_file, name, version)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, parent_id, owner_id, file_type, is_file, name, version, created_at, deleted_at
+INSERT INTO metadata (parent_id, owner_id, object_key, file_type, is_file, name, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, parent_id, owner_id, object_key, file_type, is_file, name, version, created_at, deleted_at
 `
 
 type CreateMetadataParams struct {
-	ParentID *int32 `json:"parent_id"`
-	OwnerID  int32  `json:"owner_id"`
-	FileType string `json:"file_type"`
-	IsFile   *bool  `json:"is_file"`
-	Name     string `json:"name"`
-	Version  int32  `json:"version"`
+	ParentID  *int32  `json:"parent_id"`
+	OwnerID   int32   `json:"owner_id"`
+	ObjectKey *string `json:"object_key"`
+	FileType  string  `json:"file_type"`
+	IsFile    *bool   `json:"is_file"`
+	Name      string  `json:"name"`
+	Version   int32   `json:"version"`
 }
 
 func (q *Queries) CreateMetadata(ctx context.Context, arg CreateMetadataParams) (Metadata, error) {
 	row := q.db.QueryRow(ctx, createMetadata,
 		arg.ParentID,
 		arg.OwnerID,
+		arg.ObjectKey,
 		arg.FileType,
 		arg.IsFile,
 		arg.Name,
@@ -38,6 +40,7 @@ func (q *Queries) CreateMetadata(ctx context.Context, arg CreateMetadataParams) 
 		&i.ID,
 		&i.ParentID,
 		&i.OwnerID,
+		&i.ObjectKey,
 		&i.FileType,
 		&i.IsFile,
 		&i.Name,
@@ -60,7 +63,7 @@ func (q *Queries) DeleteMetadata(ctx context.Context, id int32) error {
 }
 
 const getChildren = `-- name: GetChildren :many
-SELECT id, parent_id, owner_id, file_type, is_file, name, version, created_at, deleted_at FROM metadata
+SELECT id, parent_id, owner_id, object_key, file_type, is_file, name, version, created_at, deleted_at FROM metadata
 WHERE parent_id = $1
 ORDER BY created_at DESC
 `
@@ -78,6 +81,7 @@ func (q *Queries) GetChildren(ctx context.Context, parentID *int32) ([]Metadata,
 			&i.ID,
 			&i.ParentID,
 			&i.OwnerID,
+			&i.ObjectKey,
 			&i.FileType,
 			&i.IsFile,
 			&i.Name,
@@ -96,7 +100,7 @@ func (q *Queries) GetChildren(ctx context.Context, parentID *int32) ([]Metadata,
 }
 
 const getChildrenHome = `-- name: GetChildrenHome :many
-SELECT id, parent_id, owner_id, file_type, is_file, name, version, created_at, deleted_at FROM metadata
+SELECT id, parent_id, owner_id, object_key, file_type, is_file, name, version, created_at, deleted_at FROM metadata
 WHERE owner_id = $1 AND parent_id IS NULL
 ORDER BY created_at DESC
 `
@@ -114,6 +118,7 @@ func (q *Queries) GetChildrenHome(ctx context.Context, ownerID int32) ([]Metadat
 			&i.ID,
 			&i.ParentID,
 			&i.OwnerID,
+			&i.ObjectKey,
 			&i.FileType,
 			&i.IsFile,
 			&i.Name,
@@ -132,7 +137,7 @@ func (q *Queries) GetChildrenHome(ctx context.Context, ownerID int32) ([]Metadat
 }
 
 const getMetadata = `-- name: GetMetadata :one
-SELECT id, parent_id, owner_id, file_type, is_file, name, version, created_at, deleted_at FROM metadata
+SELECT id, parent_id, owner_id, object_key, file_type, is_file, name, version, created_at, deleted_at FROM metadata
 WHERE id = $1
 `
 
@@ -143,6 +148,7 @@ func (q *Queries) GetMetadata(ctx context.Context, id int32) (Metadata, error) {
 		&i.ID,
 		&i.ParentID,
 		&i.OwnerID,
+		&i.ObjectKey,
 		&i.FileType,
 		&i.IsFile,
 		&i.Name,
@@ -158,7 +164,7 @@ UPDATE metadata
 SET name = $2,
     version = version + 1
 WHERE id = $1
-RETURNING id, parent_id, owner_id, file_type, is_file, name, version, created_at, deleted_at
+RETURNING id, parent_id, owner_id, object_key, file_type, is_file, name, version, created_at, deleted_at
 `
 
 type UpdateMetaParams struct {
@@ -173,6 +179,7 @@ func (q *Queries) UpdateMeta(ctx context.Context, arg UpdateMetaParams) (Metadat
 		&i.ID,
 		&i.ParentID,
 		&i.OwnerID,
+		&i.ObjectKey,
 		&i.FileType,
 		&i.IsFile,
 		&i.Name,

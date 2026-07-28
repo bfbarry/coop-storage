@@ -29,7 +29,7 @@ func (this *App) PostMetadata(w http.ResponseWriter, r *http.Request) {
 
 	gm, err := this.repo.CreateMetadata(r.Context(), &params)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create map %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to create metadata %v", err), http.StatusInternalServerError)
 		return
 	}
 

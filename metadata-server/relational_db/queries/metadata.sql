@@ -1,6 +1,6 @@
 -- name: CreateMetadata :one
-INSERT INTO metadata (parent_id, owner_id, file_type, is_file, name, version)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO metadata (parent_id, owner_id, object_key, file_type, is_file, name, version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetMetadata :one

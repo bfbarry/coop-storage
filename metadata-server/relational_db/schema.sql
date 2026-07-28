@@ -9,6 +9,7 @@ CREATE TABLE metadata (
     id SERIAL PRIMARY KEY,
     parent_id INT REFERENCES metadata(id) ON DELETE CASCADE,
     owner_id INT NOT NULL REFERENCES account(id) ON DELETE CASCADE,
+    object_key TEXT,  -- RustFS object key; NULL for directories
     file_type TEXT NOT NULL,
     is_file BOOLEAN DEFAULT FALSE,
     name TEXT NOT NULL,
