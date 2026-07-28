@@ -15,21 +15,6 @@ import (
 var ErrNotFound = errors.New("object not found")
 var ErrInternal = errors.New("internal storage error")
 
-// ── Shared types ──────────────────────────────────────────────────────────────
-
-// ObjectMeta holds the metadata record for a stored object.
-type ObjectMeta struct {
-	Key         string    `json:"key"`
-	ContentType string    `json:"content_type"`
-	Size        int64     `json:"size"`
-	UploadedAt  time.Time `json:"uploaded_at"`
-}
-
-// ListFilter controls which objects are returned by ListObjects.
-type ListFilter struct {
-	Prefix string
-}
-
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
 // Uploader is the storage capability needed by UploadHandler.
@@ -45,12 +30,6 @@ type Deleter interface {
 // Downloader is the storage capability needed by DownloadHandler.
 type Downloader interface {
 	PresignDownload(ctx context.Context, key string) (url string, expiresAt time.Time, err error)
-}
-
-// MetadataStore is the storage capability needed by MetadataHandler.
-type MetadataStore interface {
-	GetObject(ctx context.Context, key string) (*ObjectMeta, error)
-	ListObjects(ctx context.Context, filter ListFilter) ([]ObjectMeta, error)
 }
 
 // ── JSON helpers ──────────────────────────────────────────────────────────────
