@@ -1,19 +1,18 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"context"
-
 	"os"
 
 	"github.com/bfbarry/coop-storage/metadata-server/auth"
 	"github.com/bfbarry/coop-storage/metadata-server/config"
 	"github.com/bfbarry/coop-storage/metadata-server/controllers"
+	"github.com/bfbarry/coop-storage/metadata-server/relational_db"
 	"github.com/bfbarry/coop-storage/metadata-server/storage"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // indexer is set during startup and used by the metadata handlers and the
@@ -56,8 +55,6 @@ func main() {
 		log.SetFlags(0)
 		log.SetOutput(os.Stdout)
 	}
-	InitDb()
-	defer CloseDb()
 	// TODO: add more config to http server e.g,
 	// 		Addr:         ":" + config.Server.Port,
 	// Handler:      mux,
@@ -65,7 +62,10 @@ func main() {
 	// WriteTimeout: 10 * time.Second,
 	// IdleTimeout:  60 * time.Second
 
-	mux := http.NewServeMux()
+	relational_db.PSQL.Start()
+	defer relational_db.PSQL.Stop()
+
+	app := controllers.NewApp(controllers.NewMetaRepo(relational_db.PSQL))
 
 	rustFsClient := storage.NewRustFSClient(config.GLOBAL_CONFIG.RustFS)
 
@@ -82,49 +82,42 @@ func main() {
 	uploader := controllers.NewUploadHandler(rustFsClient)
 	downloader := controllers.NewDownloadHandler(rustFsClient)
 
-	// Initialize Clerk auth provider
 	clerkProvider := auth.NewClerkProvider(config.GLOBAL_CONFIG.Auth.ClerkSecretKey)
 	authMiddleware := auth.AuthMiddleWare(clerkProvider)
 
-	// uploader.Register("/upload/presign", mux)
-	// downloader.Register("/download/presign", mux)
+	r := chi.NewRouter()
+	r.Use(corsMiddleware)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-			return
-		}
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	// Apply auth middleware to presign route
-	mux.Handle("/upload/presign", authMiddleware(http.HandlerFunc(uploader.HandlePresign)))
-	mux.HandleFunc("/download/presign/", downloader.HandlePresign)
-	// Apply auth middleware to metadata write endpoint
-	mux.Handle("/write_meta", authMiddleware(http.HandlerFunc(createMetaObject)))
-	mux.HandleFunc("/read_meta", readMetaObject)
-	// Apply auth middleware to read_all_meta to use authenticated user
-	mux.Handle("/read_all_meta", authMiddleware(http.HandlerFunc(readAllMetaObjects)))
-	mux.Handle("/search", authMiddleware(http.HandlerFunc(searchHandler)))
 
-	// client facing
-	// http.HandleFunc("/write_object", requestWriteObject) // maybe this one is just auth?
-	// http.HandleFunc("/prepare_osd_request", uploader.)
+	// Metadata
+	r.Post("/metadata", app.PostMetadata)
+	r.Get("/metadata/home", app.GetChildrenHome)
+	r.Get("/metadata/{id}", app.GetMetadata)
+	r.Get("/metadata", app.GetChildren)
+	r.Put("/metadata/{id}", app.PutMetadata)
+	r.Delete("/metadata/{id}", app.DeleteMetadata)
 
-	// // called by osd
-	// http.HandleFunc("/write_meta", createMetaObject)
-	// http.HandleFunc("/update_meta", UpdateMetaObject)
-	// // dev only
-	// http.HandleFunc("/read_meta", readMetaObject)
-	// http.HandleFunc("/run_gc", runGc)
+	// Accounts
+	r.Post("/accounts", app.PostAccount)
+	r.Get("/accounts/{id}", app.GetAccount)
+	r.Put("/accounts/{id}", app.PutAccount)
+	r.Delete("/accounts/{id}", app.DeleteAccount)
+
+	// Permissions
+	r.Post("/permissions", app.PostPermission)
+	r.Get("/permissions", app.GetPermission)
+	r.Delete("/permissions/{id}", app.DeletePermission)
+
 	log.Printf("Server starting on PORT %s\n", config.PORT)
-
-	// Wrap mux with CORS middleware
-	handler := corsMiddleware(mux)
-
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.PORT), handler); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.PORT), r); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }

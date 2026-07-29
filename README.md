@@ -7,6 +7,7 @@ A file metadata store built on BadgerDB (LSM-tree key-value store) with RustFS a
 - Docker + Docker Compose
 - Go 1.25+
 - Git Bash (Windows) or bash (Mac/Linux)
+- [sqlc](https://docs.sqlc.dev/en/latest/overview/install.html)
 
 ## Setup
 
@@ -21,7 +22,7 @@ cd coop-storage
 
 ```bash
 cd devops
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 This starts:
@@ -52,6 +53,10 @@ cd tests
 sh full_test.sh
 ```
 Expected output:
+
+# TODO
+
+large exports
 
 metadata-server
 osd-server
