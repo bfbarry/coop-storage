@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"context"
 
 	"os"
 
@@ -14,6 +15,10 @@ import (
 	"github.com/bfbarry/coop-storage/metadata-server/controllers"
 	"github.com/bfbarry/coop-storage/metadata-server/storage"
 )
+
+// indexer is set during startup and used by the metadata handlers and the
+// delete path (core.go) to index and clean up file content in the vector store.
+var indexer *storage.Indexer
 
 // TODO: figure out cleaner way to share types across containers?
 type MetadataPOST struct {
@@ -69,10 +74,10 @@ func main() {
 
 	vdb, err := storage.NewVectorDB(config.GLOBAL_CONFIG.Qdrant, config.GLOBAL_CONFIG.Embedding.Dimension)
 	if err != nil {log.Fatal(err)}
-	if err := vdb.EnsureCollection(context.Background());
+	if err := vdb.EnsureCollection(context.Background()); 
 	err != nil {log.Fatal(err)}
 
-	indexer := storage.NewIndexer(rustFsClient, embedder, vdb)
+	indexer = storage.NewIndexer(rustFsClient, embedder, vdb)
 
 	uploader := controllers.NewUploadHandler(rustFsClient)
 	downloader := controllers.NewDownloadHandler(rustFsClient)

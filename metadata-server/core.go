@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -94,6 +95,13 @@ func (o *MetaObject) Update() error {
 		}
 		if err := UpdateUserIndex(o.Owner, o.FileName, "", "", Remove); err != nil {
 			return err
+		}
+
+		// Remove the file's chunks from the vector store so deleted content
+		// can't surface in search. Metadata is already deleted at this point,
+		// so log on failure rather than failing the whole delete.
+		if err := indexer.DeleteObject(context.Background(), o.ID); err != nil {
+			log.Printf("MetaObject.Update: vector cleanup failed for %s: %v", o.ID, err)
 		}
 
 		return nil
