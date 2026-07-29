@@ -159,7 +159,37 @@ func (q *Queries) GetMetadata(ctx context.Context, id int32) (Metadata, error) {
 	return i, err
 }
 
-const updateUpdate = `-- name: UpdateMeta :one
+const moveMetadata = `-- name: MoveMetadata :one
+UPDATE metadata
+SET parent_id = $2
+WHERE id = $1
+RETURNING id, parent_id, owner_id, object_key, file_type, is_file, name, version, created_at, deleted_at
+`
+
+type MoveMetadataParams struct {
+	ID       int32  `json:"id"`
+	ParentID *int32 `json:"parent_id"`
+}
+
+func (q *Queries) MoveMetadata(ctx context.Context, arg MoveMetadataParams) (Metadata, error) {
+	row := q.db.QueryRow(ctx, moveMetadata, arg.ID, arg.ParentID)
+	var i Metadata
+	err := row.Scan(
+		&i.ID,
+		&i.ParentID,
+		&i.OwnerID,
+		&i.ObjectKey,
+		&i.FileType,
+		&i.IsFile,
+		&i.Name,
+		&i.Version,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateMeta = `-- name: UpdateMeta :one
 UPDATE metadata
 SET name = $2,
     version = version + 1
@@ -173,7 +203,7 @@ type UpdateMetaParams struct {
 }
 
 func (q *Queries) UpdateMeta(ctx context.Context, arg UpdateMetaParams) (Metadata, error) {
-	row := q.db.QueryRow(ctx, updateUpdate, arg.ID, arg.Name)
+	row := q.db.QueryRow(ctx, updateMeta, arg.ID, arg.Name)
 	var i Metadata
 	err := row.Scan(
 		&i.ID,

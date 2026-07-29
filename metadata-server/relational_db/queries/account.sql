@@ -1,19 +1,9 @@
 -- name: CreateAccount :one
-INSERT INTO account (email)
-VALUES ($1)
+INSERT INTO account (clerk_id, email)
+VALUES ($1, $2)
 RETURNING *;
 
--- name: GetAccount :one
+-- name: GetAccountByClerkID :one
 SELECT * FROM account
-WHERE id = $1;
+WHERE clerk_id = $1;
 
--- name: UpdateAccount :one
-UPDATE account
-SET email = $2
-WHERE id = $1
-RETURNING *;
-
--- name: DeleteAccount :exec
-UPDATE account
-SET deleted_at = NOW()
-WHERE id = $1;

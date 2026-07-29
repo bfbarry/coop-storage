@@ -44,6 +44,9 @@ curl http://localhost:7678/health
 # expected: {"status":"ok"}
 ```
 
+## Clerk
+see https://dashboard.clerk.com/
+
 ## Running the E2E Demo
 
 Test images are in `tests/data/`. From the repo root:

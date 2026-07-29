@@ -10,6 +10,7 @@ import (
 
 type Account struct {
 	ID         int32              `json:"id"`
+	ClerkID    *string            `json:"clerk_id"`
 	Email      string             `json:"email"`
 	LastActive pgtype.Timestamptz `json:"last_active"`
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`

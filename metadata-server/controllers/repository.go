@@ -9,10 +9,11 @@ import (
 
 type Metadata = db.Metadata
 type Account = db.Account
+type CreateAccountParams = db.CreateAccountParams
 type Permission = db.Permission
 type CreateMetadataParams = db.CreateMetadataParams
 type UpdateMetaParams = db.UpdateMetaParams
-type UpdateAccountParams = db.UpdateAccountParams
+type MoveMetadataParams = db.MoveMetadataParams
 type CreatePermissionParams = db.CreatePermissionParams
 type GetPermissionParams = db.GetPermissionParams
 
@@ -23,13 +24,12 @@ type IMetadataRepo interface {
 	GetChildren(ctx context.Context, parentID *int32) ([]*db.Metadata, error)
 	GetChildrenHome(ctx context.Context, ownerID int32) ([]*db.Metadata, error)
 	UpdateMeta(ctx context.Context, arg *db.UpdateMetaParams) (*db.Metadata, error)
+	MoveMetadata(ctx context.Context, arg *db.MoveMetadataParams) (*db.Metadata, error)
 	DeleteMetadata(ctx context.Context, id int32) error
 
 	// Accounts
-	CreateAccount(ctx context.Context, email string) (*db.Account, error)
-	GetAccount(ctx context.Context, id int32) (*db.Account, error)
-	UpdateAccount(ctx context.Context, arg *db.UpdateAccountParams) (*db.Account, error)
-	DeleteAccount(ctx context.Context, id int32) error
+	CreateAccount(ctx context.Context, params *db.CreateAccountParams) (*db.Account, error)
+	GetAccountByClerkID(ctx context.Context, clerkID string) (*db.Account, error)
 
 	// Permissions
 	CreatePermission(ctx context.Context, arg *db.CreatePermissionParams) (*db.Permission, error)
@@ -91,36 +91,32 @@ func (this *MetadataRepo) UpdateMeta(ctx context.Context, arg *db.UpdateMetaPara
 	}
 	return &m, nil
 }
+func (this *MetadataRepo) MoveMetadata(ctx context.Context, arg *db.MoveMetadataParams) (*db.Metadata, error) {
+	m, err := this.SQLdb.Queries.MoveMetadata(ctx, *arg)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to move metadata: %v", err)
+	}
+	return &m, nil
+}
 func (this *MetadataRepo) DeleteMetadata(ctx context.Context, id int32) error {
 	return this.SQLdb.Queries.DeleteMetadata(ctx, id)
 }
 
 // Accounts
-func (this *MetadataRepo) CreateAccount(ctx context.Context, email string) (*db.Account, error) {
-	a, err := this.SQLdb.Queries.CreateAccount(ctx, email)
+func (this *MetadataRepo) CreateAccount(ctx context.Context, params *db.CreateAccountParams) (*db.Account, error) {
+	a, err := this.SQLdb.Queries.CreateAccount(ctx, *params)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create account: %v", err)
 	}
 	return &a, nil
 }
-func (this *MetadataRepo) GetAccount(ctx context.Context, id int32) (*db.Account, error) {
-	a, err := this.SQLdb.Queries.GetAccount(ctx, id)
+func (this *MetadataRepo) GetAccountByClerkID(ctx context.Context, clerkID string) (*db.Account, error) {
+	a, err := this.SQLdb.Queries.GetAccountByClerkID(ctx, &clerkID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get account: %v", err)
+		return nil, fmt.Errorf("Failed to get account by clerk_id: %v", err)
 	}
 	return &a, nil
 }
-func (this *MetadataRepo) UpdateAccount(ctx context.Context, arg *db.UpdateAccountParams) (*db.Account, error) {
-	a, err := this.SQLdb.Queries.UpdateAccount(ctx, *arg)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to update account: %v", err)
-	}
-	return &a, nil
-}
-func (this *MetadataRepo) DeleteAccount(ctx context.Context, id int32) error {
-	return this.SQLdb.Queries.DeleteAccount(ctx, id)
-}
-
 // Permissions
 func (this *MetadataRepo) CreatePermission(ctx context.Context, arg *db.CreatePermissionParams) (*db.Permission, error) {
 	p, err := this.SQLdb.Queries.CreatePermission(ctx, *arg)

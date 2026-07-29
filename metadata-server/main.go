@@ -76,14 +76,12 @@ func main() {
 	r.Get("/metadata/{id}", app.GetMetadata)
 	r.Get("/metadata", app.GetChildren)
 	r.Put("/metadata/{id}", app.PutMetadata)
+	r.Patch("/metadata/{id}/parent", app.PatchMetadataParent)
 	r.Delete("/metadata/{id}", app.DeleteMetadata)
 
 	// Accounts
 	r.Post("/accounts", app.PostAccount)
-	r.Get("/accounts/{id}", app.GetAccount)
-	r.Put("/accounts/{id}", app.PutAccount)
-	r.Delete("/accounts/{id}", app.DeleteAccount)
-
+	r.Get("/accounts", app.GetAccountByClerkID)
 	// Permissions
 	r.Post("/permissions", app.PostPermission)
 	r.Get("/permissions", app.GetPermission)

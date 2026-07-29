@@ -100,6 +100,31 @@ func (this *App) PutMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, m)
 }
 
+func (this *App) PatchMetadataParent(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		ParentID *int32 `json:"parent_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+	m, err := this.repo.MoveMetadata(r.Context(), &MoveMetadataParams{
+		ID:       int32(id),
+		ParentID: body.ParentID,
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to move metadata: %v", err), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
 func (this *App) DeleteMetadata(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
 	if err != nil {
@@ -117,14 +142,18 @@ func (this *App) DeleteMetadata(w http.ResponseWriter, r *http.Request) {
 
 func (this *App) PostAccount(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Email string `json:"email"`
+		ClerkID string `json:"clerk_id"`
+		Email   string `json:"email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
-	a, err := this.repo.CreateAccount(r.Context(), body.Email)
+	a, err := this.repo.CreateAccount(r.Context(), &CreateAccountParams{
+		ClerkID: &body.ClerkID,
+		Email:   body.Email,
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create account: %v", err), http.StatusInternalServerError)
 		return
@@ -132,46 +161,18 @@ func (this *App) PostAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, a)
 }
 
-func (this *App) GetAccount(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
-	if err != nil {
-		http.Error(w, "Invalid id", http.StatusBadRequest)
+func (this *App) GetAccountByClerkID(w http.ResponseWriter, r *http.Request) {
+	clerkID := r.URL.Query().Get("clerk_id")
+	if clerkID == "" {
+		http.Error(w, "clerk_id query param required", http.StatusBadRequest)
 		return
 	}
-	a, err := this.repo.GetAccount(r.Context(), int32(id))
+	a, err := this.repo.GetAccountByClerkID(r.Context(), clerkID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get account: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Account not found: %v", err), http.StatusNotFound)
 		return
 	}
 	writeJSON(w, http.StatusOK, a)
-}
-
-func (this *App) PutAccount(w http.ResponseWriter, r *http.Request) {
-	var params UpdateAccountParams
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-	a, err := this.repo.UpdateAccount(r.Context(), &params)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update account: %v", err), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, a)
-}
-
-func (this *App) DeleteAccount(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
-	if err != nil {
-		http.Error(w, "Invalid id", http.StatusBadRequest)
-		return
-	}
-	if err := this.repo.DeleteAccount(r.Context(), int32(id)); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to delete account: %v", err), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // Permissions
