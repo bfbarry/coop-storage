@@ -161,20 +161,6 @@ func (this *App) PostAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, a)
 }
 
-func (this *App) GetAccount(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
-	if err != nil {
-		http.Error(w, "Invalid id", http.StatusBadRequest)
-		return
-	}
-	a, err := this.repo.GetAccount(r.Context(), int32(id))
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get account: %v", err), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, a)
-}
-
 func (this *App) GetAccountByClerkID(w http.ResponseWriter, r *http.Request) {
 	clerkID := r.URL.Query().Get("clerk_id")
 	if clerkID == "" {
@@ -187,34 +173,6 @@ func (this *App) GetAccountByClerkID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, a)
-}
-
-func (this *App) PutAccount(w http.ResponseWriter, r *http.Request) {
-	var params UpdateAccountParams
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-	a, err := this.repo.UpdateAccount(r.Context(), &params)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update account: %v", err), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, a)
-}
-
-func (this *App) DeleteAccount(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
-	if err != nil {
-		http.Error(w, "Invalid id", http.StatusBadRequest)
-		return
-	}
-	if err := this.repo.DeleteAccount(r.Context(), int32(id)); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to delete account: %v", err), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // Permissions

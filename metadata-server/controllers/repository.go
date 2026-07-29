@@ -14,7 +14,6 @@ type Permission = db.Permission
 type CreateMetadataParams = db.CreateMetadataParams
 type UpdateMetaParams = db.UpdateMetaParams
 type MoveMetadataParams = db.MoveMetadataParams
-type UpdateAccountParams = db.UpdateAccountParams
 type CreatePermissionParams = db.CreatePermissionParams
 type GetPermissionParams = db.GetPermissionParams
 
@@ -30,10 +29,7 @@ type IMetadataRepo interface {
 
 	// Accounts
 	CreateAccount(ctx context.Context, params *db.CreateAccountParams) (*db.Account, error)
-	GetAccount(ctx context.Context, id int32) (*db.Account, error)
 	GetAccountByClerkID(ctx context.Context, clerkID string) (*db.Account, error)
-	UpdateAccount(ctx context.Context, arg *db.UpdateAccountParams) (*db.Account, error)
-	DeleteAccount(ctx context.Context, id int32) error
 
 	// Permissions
 	CreatePermission(ctx context.Context, arg *db.CreatePermissionParams) (*db.Permission, error)
@@ -114,13 +110,6 @@ func (this *MetadataRepo) CreateAccount(ctx context.Context, params *db.CreateAc
 	}
 	return &a, nil
 }
-func (this *MetadataRepo) GetAccount(ctx context.Context, id int32) (*db.Account, error) {
-	a, err := this.SQLdb.Queries.GetAccount(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get account: %v", err)
-	}
-	return &a, nil
-}
 func (this *MetadataRepo) GetAccountByClerkID(ctx context.Context, clerkID string) (*db.Account, error) {
 	a, err := this.SQLdb.Queries.GetAccountByClerkID(ctx, &clerkID)
 	if err != nil {
@@ -128,17 +117,6 @@ func (this *MetadataRepo) GetAccountByClerkID(ctx context.Context, clerkID strin
 	}
 	return &a, nil
 }
-func (this *MetadataRepo) UpdateAccount(ctx context.Context, arg *db.UpdateAccountParams) (*db.Account, error) {
-	a, err := this.SQLdb.Queries.UpdateAccount(ctx, *arg)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to update account: %v", err)
-	}
-	return &a, nil
-}
-func (this *MetadataRepo) DeleteAccount(ctx context.Context, id int32) error {
-	return this.SQLdb.Queries.DeleteAccount(ctx, id)
-}
-
 // Permissions
 func (this *MetadataRepo) CreatePermission(ctx context.Context, arg *db.CreatePermissionParams) (*db.Permission, error) {
 	p, err := this.SQLdb.Queries.CreatePermission(ctx, *arg)

@@ -33,35 +33,6 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 	return i, err
 }
 
-const deleteAccount = `-- name: DeleteAccount :exec
-UPDATE account
-SET deleted_at = NOW()
-WHERE id = $1
-`
-
-func (q *Queries) DeleteAccount(ctx context.Context, id int32) error {
-	_, err := q.db.Exec(ctx, deleteAccount, id)
-	return err
-}
-
-const getAccount = `-- name: GetAccount :one
-SELECT id, clerk_id, email, last_active, deleted_at FROM account
-WHERE id = $1
-`
-
-func (q *Queries) GetAccount(ctx context.Context, id int32) (Account, error) {
-	row := q.db.QueryRow(ctx, getAccount, id)
-	var i Account
-	err := row.Scan(
-		&i.ID,
-		&i.ClerkID,
-		&i.Email,
-		&i.LastActive,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
 const getAccountByClerkID = `-- name: GetAccountByClerkID :one
 SELECT id, clerk_id, email, last_active, deleted_at FROM account
 WHERE clerk_id = $1
@@ -69,31 +40,6 @@ WHERE clerk_id = $1
 
 func (q *Queries) GetAccountByClerkID(ctx context.Context, clerkID *string) (Account, error) {
 	row := q.db.QueryRow(ctx, getAccountByClerkID, clerkID)
-	var i Account
-	err := row.Scan(
-		&i.ID,
-		&i.ClerkID,
-		&i.Email,
-		&i.LastActive,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const updateAccount = `-- name: UpdateAccount :one
-UPDATE account
-SET email = $2
-WHERE id = $1
-RETURNING id, clerk_id, email, last_active, deleted_at
-`
-
-type UpdateAccountParams struct {
-	ID    int32  `json:"id"`
-	Email string `json:"email"`
-}
-
-func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
-	row := q.db.QueryRow(ctx, updateAccount, arg.ID, arg.Email)
 	var i Account
 	err := row.Scan(
 		&i.ID,
