@@ -76,6 +76,7 @@ func main() {
 	r.Get("/metadata/{id}", app.GetMetadata)
 	r.Get("/metadata", app.GetChildren)
 	r.Put("/metadata/{id}", app.PutMetadata)
+	r.Patch("/metadata/{id}/parent", app.PatchMetadataParent)
 	r.Delete("/metadata/{id}", app.DeleteMetadata)
 
 	// Accounts

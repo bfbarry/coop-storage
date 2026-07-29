@@ -100,6 +100,31 @@ func (this *App) PutMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, m)
 }
 
+func (this *App) PatchMetadataParent(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		ParentID *int32 `json:"parent_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+	m, err := this.repo.MoveMetadata(r.Context(), &MoveMetadataParams{
+		ID:       int32(id),
+		ParentID: body.ParentID,
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to move metadata: %v", err), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
 func (this *App) DeleteMetadata(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 32)
 	if err != nil {

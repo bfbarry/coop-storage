@@ -14,13 +14,26 @@ const accountId = ref<number | null>(null)
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
+// Folder navigation: stack of folders entered (empty = home)
+const folderStack = ref<MetaObject[]>([])
+const currentFolder = () => folderStack.value[folderStack.value.length - 1] ?? null
+
+// Create-folder state
+const creatingFolder = ref(false)
+const newFolderName = ref('')
+const folderNameInput = ref<HTMLInputElement | null>(null)
+
 const API_BASE = 'http://localhost:7678'
 
 async function fetchFiles() {
   if (accountId.value === null) return
-  const res = await fetch(`${API_BASE}/metadata/home?owner_id=${accountId.value}`)
+  const folder = currentFolder()
+  const url = folder
+    ? `${API_BASE}/metadata?parent_id=${folder.id}`
+    : `${API_BASE}/metadata/home?owner_id=${accountId.value}`
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch files: ${res.status}`)
-  files.value = await res.json()
+  files.value = (await res.json()) ?? []
 }
 
 watchEffect(async () => {
@@ -34,7 +47,6 @@ watchEffect(async () => {
   error.value = null
 
   try {
-    // Find or create the DB account for this Clerk user
     let account
     const accountRes = await fetch(`${API_BASE}/accounts?clerk_id=${encodeURIComponent(user.value.id)}`)
     if (accountRes.status === 404) {
@@ -74,7 +86,6 @@ async function handleUpload(event: Event) {
   try {
     const token = await getToken.value({ skipCache: true })
 
-    // 1. Get presigned upload URL
     const presignRes = await fetch(`${API_BASE}/upload/presign`, {
       method: 'POST',
       headers: {
@@ -90,7 +101,6 @@ async function handleUpload(event: Event) {
     if (!presignRes.ok) throw new Error(`Presign failed: ${presignRes.status}`)
     const { upload_url, object_key } = await presignRes.json()
 
-    // 2. PUT directly to RustFS
     const putRes = await fetch(upload_url, {
       method: 'PUT',
       headers: { 'Content-Type': file.type || 'application/octet-stream' },
@@ -98,12 +108,13 @@ async function handleUpload(event: Event) {
     })
     if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
 
-    // 3. Save metadata
+    const folder = currentFolder()
     const metaRes = await fetch(`${API_BASE}/metadata`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         owner_id: accountId.value,
+        parent_id: folder?.id ?? null,
         object_key,
         name: file.name,
         file_type: file.type || 'application/octet-stream',
@@ -139,6 +150,89 @@ async function handleDownload(file: MetaObject) {
     error.value = err instanceof Error ? err.message : 'Download failed'
   }
 }
+
+async function handleOpenFolder(folder: MetaObject) {
+  folderStack.value.push(folder)
+  loading.value = true
+  error.value = null
+  try {
+    await fetchFiles()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to open folder'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function navigateTo(index: number) {
+  // index -1 = home, 0 = first folder, etc.
+  folderStack.value = folderStack.value.slice(0, index + 1)
+  loading.value = true
+  error.value = null
+  try {
+    await fetchFiles()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Navigation failed'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleMove(itemId: number, targetFolderId: number) {
+  try {
+    const res = await fetch(`${API_BASE}/metadata/${itemId}/parent`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: targetFolderId }),
+    })
+    if (!res.ok) throw new Error(`Move failed: ${res.status}`)
+    await fetchFiles()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Move failed'
+  }
+}
+
+function startCreateFolder() {
+  creatingFolder.value = true
+  newFolderName.value = ''
+  // Focus the input on next tick
+  setTimeout(() => folderNameInput.value?.focus(), 0)
+}
+
+async function submitCreateFolder() {
+  const name = newFolderName.value.trim()
+  if (!name || accountId.value === null) {
+    creatingFolder.value = false
+    return
+  }
+  try {
+    const folder = currentFolder()
+    const res = await fetch(`${API_BASE}/metadata`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        owner_id: accountId.value,
+        parent_id: folder?.id ?? null,
+        name,
+        file_type: 'inode/directory',
+        is_file: false,
+        version: 1,
+      }),
+    })
+    if (!res.ok) throw new Error(`Create folder failed: ${res.status}`)
+    await fetchFiles()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Create folder failed'
+  } finally {
+    creatingFolder.value = false
+    newFolderName.value = ''
+  }
+}
+
+function cancelCreateFolder() {
+  creatingFolder.value = false
+  newFolderName.value = ''
+}
 </script>
 
 <template>
@@ -149,14 +243,31 @@ async function handleDownload(file: MetaObject) {
         <p v-if="user" class="user-email">{{ user.primaryEmailAddress?.emailAddress }}</p>
       </div>
       <div class="header-right">
-        <input ref="fileInput" type="file" hidden @change="handleUpload" />
-        <button
-          class="upload-btn"
-          :disabled="uploading || !accountId"
-          @click="fileInput?.click()"
-        >
-          {{ uploading ? 'Uploading…' : '+ Upload' }}
-        </button>
+        <div v-if="creatingFolder" class="folder-name-form">
+          <input
+            ref="folderNameInput"
+            v-model="newFolderName"
+            class="folder-name-input"
+            placeholder="Folder name"
+            @keyup.enter="submitCreateFolder"
+            @keyup.esc="cancelCreateFolder"
+          />
+          <button class="confirm-btn" @click="submitCreateFolder">Create</button>
+          <button class="cancel-btn" @click="cancelCreateFolder">✕</button>
+        </div>
+        <template v-else>
+          <button class="folder-btn" :disabled="!accountId" @click="startCreateFolder">
+            + New Folder
+          </button>
+          <input ref="fileInput" type="file" hidden @change="handleUpload" />
+          <button
+            class="upload-btn"
+            :disabled="uploading || !accountId"
+            @click="fileInput?.click()"
+          >
+            {{ uploading ? 'Uploading…' : '+ Upload' }}
+          </button>
+        </template>
       </div>
     </header>
 
@@ -175,6 +286,17 @@ async function handleDownload(file: MetaObject) {
       </div>
 
       <div v-else>
+        <!-- Breadcrumb -->
+        <nav class="breadcrumb">
+          <span class="crumb" @click="navigateTo(-1)">Home</span>
+          <template v-for="(folder, i) in folderStack" :key="folder.id">
+            <span class="crumb-sep">›</span>
+            <span class="crumb" :class="{ active: i === folderStack.length - 1 }" @click="navigateTo(i)">
+              {{ folder.name }}
+            </span>
+          </template>
+        </nav>
+
         <div v-if="loading" class="loading">
           <div class="spinner" />
           <p>Loading files…</p>
@@ -182,9 +304,14 @@ async function handleDownload(file: MetaObject) {
         <template v-else>
           <div class="file-count-bar">
             <span class="file-count">{{ files.length }} item{{ files.length !== 1 ? 's' : '' }}</span>
-            <span class="hint">Double-click a file to download</span>
+            <span class="hint">Double-click to open · Drag files onto folders to move</span>
           </div>
-          <FileGrid :files="files" @download="handleDownload" />
+          <FileGrid
+            :files="files"
+            @download="handleDownload"
+            @open-folder="handleOpenFolder"
+            @move="handleMove"
+          />
         </template>
       </div>
     </div>
@@ -212,6 +339,63 @@ async function handleDownload(file: MetaObject) {
 .header-left h1 { margin: 0 0 4px; color: #333; font-size: 28px; }
 .user-email { margin: 0; color: #888; font-size: 14px; }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.folder-btn {
+  padding: 10px 22px;
+  background: white;
+  color: #555;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.folder-btn:hover:not(:disabled) { border-color: #f9a825; color: #f9a825; }
+.folder-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.folder-name-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-name-input {
+  padding: 9px 14px;
+  border: 2px solid #f9a825;
+  border-radius: 8px;
+  font-size: 15px;
+  outline: none;
+  width: 180px;
+}
+
+.confirm-btn {
+  padding: 9px 16px;
+  background: #f9a825;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  padding: 9px 12px;
+  background: transparent;
+  color: #999;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
 .upload-btn {
   padding: 10px 22px;
   background: #4CAF50;
@@ -228,6 +412,27 @@ async function handleDownload(file: MetaObject) {
 .upload-btn:disabled { background: #a5d6a7; cursor: not-allowed; }
 
 .explorer-content { padding: 20px 40px; }
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  padding: 0 20px;
+}
+
+.crumb {
+  color: #1976d2;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.crumb:hover { background: #e3f2fd; }
+.crumb.active { color: #333; cursor: default; font-weight: 600; }
+.crumb.active:hover { background: transparent; }
+.crumb-sep { color: #bbb; }
 
 .loading {
   display: flex;

@@ -1,8 +1,46 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { MetaObject } from '@/types/file'
 
 defineProps<{ files: MetaObject[] }>()
-const emit = defineEmits<{ download: [file: MetaObject] }>()
+const emit = defineEmits<{
+  download: [file: MetaObject]
+  openFolder: [folder: MetaObject]
+  move: [itemId: number, targetFolderId: number]
+}>()
+
+const dragOverFolderId = ref<number | null>(null)
+let draggingId: number | null = null
+
+function onDragStart(file: MetaObject) {
+  draggingId = file.id
+}
+
+function onDragOver(folder: MetaObject) {
+  if (draggingId !== null && draggingId !== folder.id) {
+    dragOverFolderId.value = folder.id
+  }
+}
+
+function onDragLeave() {
+  dragOverFolderId.value = null
+}
+
+function onDrop(folder: MetaObject) {
+  if (draggingId !== null && draggingId !== folder.id) {
+    emit('move', draggingId, folder.id)
+  }
+  draggingId = null
+  dragOverFolderId.value = null
+}
+
+function onDblClick(file: MetaObject) {
+  if (file.is_file) {
+    emit('download', file)
+  } else {
+    emit('openFolder', file)
+  }
+}
 </script>
 
 <template>
@@ -11,8 +49,16 @@ const emit = defineEmits<{ download: [file: MetaObject] }>()
       v-for="file in files"
       :key="file.id"
       class="file-card"
-      :class="{ deleted: file.deleted_at !== null }"
-      @dblclick="file.is_file ? emit('download', file) : undefined"
+      :class="{
+        deleted: file.deleted_at !== null,
+        'drag-over': !file.is_file && dragOverFolderId === file.id,
+      }"
+      :draggable="true"
+      @dragstart="onDragStart(file)"
+      @dragover.prevent="!file.is_file ? onDragOver(file) : undefined"
+      @dragleave="onDragLeave"
+      @drop.prevent="!file.is_file ? onDrop(file) : undefined"
+      @dblclick="onDblClick(file)"
     >
       <div v-if="file.is_file" class="file-icon-rect">
         <div class="fold" />
@@ -61,6 +107,13 @@ const emit = defineEmits<{ download: [file: MetaObject] }>()
 }
 
 .file-card.deleted { opacity: 0.45; border-color: #f44336; }
+
+.file-card.drag-over {
+  border-color: #1976d2;
+  background: #e3f2fd;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(25, 118, 210, 0.25);
+}
 
 /* File icon: rectangle with folded top-right corner */
 .file-icon-rect {

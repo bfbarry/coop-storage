@@ -13,6 +13,7 @@ type CreateAccountParams = db.CreateAccountParams
 type Permission = db.Permission
 type CreateMetadataParams = db.CreateMetadataParams
 type UpdateMetaParams = db.UpdateMetaParams
+type MoveMetadataParams = db.MoveMetadataParams
 type UpdateAccountParams = db.UpdateAccountParams
 type CreatePermissionParams = db.CreatePermissionParams
 type GetPermissionParams = db.GetPermissionParams
@@ -24,6 +25,7 @@ type IMetadataRepo interface {
 	GetChildren(ctx context.Context, parentID *int32) ([]*db.Metadata, error)
 	GetChildrenHome(ctx context.Context, ownerID int32) ([]*db.Metadata, error)
 	UpdateMeta(ctx context.Context, arg *db.UpdateMetaParams) (*db.Metadata, error)
+	MoveMetadata(ctx context.Context, arg *db.MoveMetadataParams) (*db.Metadata, error)
 	DeleteMetadata(ctx context.Context, id int32) error
 
 	// Accounts
@@ -90,6 +92,13 @@ func (this *MetadataRepo) UpdateMeta(ctx context.Context, arg *db.UpdateMetaPara
 	m, err := this.SQLdb.Queries.UpdateMeta(ctx, *arg)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to update metadata: %v", err)
+	}
+	return &m, nil
+}
+func (this *MetadataRepo) MoveMetadata(ctx context.Context, arg *db.MoveMetadataParams) (*db.Metadata, error) {
+	m, err := this.SQLdb.Queries.MoveMetadata(ctx, *arg)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to move metadata: %v", err)
 	}
 	return &m, nil
 }

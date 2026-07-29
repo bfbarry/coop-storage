@@ -24,6 +24,12 @@ SET name = $2,
 WHERE id = $1
 RETURNING *;
 
+-- name: MoveMetadata :one
+UPDATE metadata
+SET parent_id = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: DeleteMetadata :exec
 UPDATE metadata
 SET deleted_at = NOW()
