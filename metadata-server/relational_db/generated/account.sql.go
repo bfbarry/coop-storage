@@ -10,16 +10,22 @@ import (
 )
 
 const createAccount = `-- name: CreateAccount :one
-INSERT INTO account (email)
-VALUES ($1)
-RETURNING id, email, last_active, deleted_at
+INSERT INTO account (clerk_id, email)
+VALUES ($1, $2)
+RETURNING id, clerk_id, email, last_active, deleted_at
 `
 
-func (q *Queries) CreateAccount(ctx context.Context, email string) (Account, error) {
-	row := q.db.QueryRow(ctx, createAccount, email)
+type CreateAccountParams struct {
+	ClerkID *string `json:"clerk_id"`
+	Email   string  `json:"email"`
+}
+
+func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
+	row := q.db.QueryRow(ctx, createAccount, arg.ClerkID, arg.Email)
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.ClerkID,
 		&i.Email,
 		&i.LastActive,
 		&i.DeletedAt,
@@ -39,7 +45,7 @@ func (q *Queries) DeleteAccount(ctx context.Context, id int32) error {
 }
 
 const getAccount = `-- name: GetAccount :one
-SELECT id, email, last_active, deleted_at FROM account
+SELECT id, clerk_id, email, last_active, deleted_at FROM account
 WHERE id = $1
 `
 
@@ -48,6 +54,25 @@ func (q *Queries) GetAccount(ctx context.Context, id int32) (Account, error) {
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.ClerkID,
+		&i.Email,
+		&i.LastActive,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getAccountByClerkID = `-- name: GetAccountByClerkID :one
+SELECT id, clerk_id, email, last_active, deleted_at FROM account
+WHERE clerk_id = $1
+`
+
+func (q *Queries) GetAccountByClerkID(ctx context.Context, clerkID *string) (Account, error) {
+	row := q.db.QueryRow(ctx, getAccountByClerkID, clerkID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.ClerkID,
 		&i.Email,
 		&i.LastActive,
 		&i.DeletedAt,
@@ -59,7 +84,7 @@ const updateAccount = `-- name: UpdateAccount :one
 UPDATE account
 SET email = $2
 WHERE id = $1
-RETURNING id, email, last_active, deleted_at
+RETURNING id, clerk_id, email, last_active, deleted_at
 `
 
 type UpdateAccountParams struct {
@@ -72,6 +97,7 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 	var i Account
 	err := row.Scan(
 		&i.ID,
+		&i.ClerkID,
 		&i.Email,
 		&i.LastActive,
 		&i.DeletedAt,

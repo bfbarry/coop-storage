@@ -1,29 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { MetaObject } from '@/types/file'
 
-const props = defineProps<{
-  files: MetaObject[]
-}>()
-
-const getFileIcon = (fileType: string): string => {
-  const type = fileType.toLowerCase()
-  if (type.includes('image') || type.includes('png') || type.includes('jpg') || type.includes('jpeg')) return '🖼️'
-  if (type.includes('pdf')) return '📄'
-  if (type.includes('video')) return '🎥'
-  if (type.includes('audio')) return '🎵'
-  if (type.includes('zip') || type.includes('archive')) return '📦'
-  if (type.includes('text')) return '📝'
-  return '📄'
-}
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
+defineProps<{ files: MetaObject[] }>()
+const emit = defineEmits<{ download: [file: MetaObject] }>()
 </script>
 
 <template>
@@ -32,16 +11,21 @@ const formatFileSize = (bytes: number): string => {
       v-for="file in files"
       :key="file.id"
       class="file-card"
-      :class="{ 'deleted': file.deleteFlag }"
+      :class="{ deleted: file.deleted_at !== null }"
+      @dblclick="file.is_file ? emit('download', file) : undefined"
     >
-      <div class="file-icon">{{ getFileIcon(file.fileType) }}</div>
-      <div class="file-name">{{ file.fileName }}</div>
-      <div class="file-type">{{ file.fileType }}</div>
+      <div v-if="file.is_file" class="file-icon-rect">
+        <div class="fold" />
+      </div>
+      <div v-else class="folder-icon-rect" />
+
+      <div class="file-name">{{ file.name }}</div>
+      <div class="file-type">{{ file.file_type }}</div>
       <div class="file-version">v{{ file.version }}</div>
-      <div v-if="file.deleteFlag" class="deleted-badge">Deleted</div>
+      <div v-if="file.deleted_at !== null" class="deleted-badge">Deleted</div>
     </div>
     <div v-if="files.length === 0" class="empty-state">
-      <p>No files found</p>
+      <p>No files yet</p>
     </div>
   </div>
 </template>
@@ -49,7 +33,7 @@ const formatFileSize = (bytes: number): string => {
 <style scoped>
 .file-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 20px;
   padding: 20px;
 }
@@ -58,52 +42,87 @@ const formatFileSize = (bytes: number): string => {
   background: #fff;
   border: 2px solid #e0e0e0;
   border-radius: 12px;
-  padding: 20px;
+  padding: 20px 16px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
   min-height: 180px;
+  user-select: none;
 }
 
 .file-card:hover {
   border-color: #4CAF50;
-  transform: translateY(-4px);
+  transform: translateY(-3px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.file-card.deleted {
-  opacity: 0.5;
-  border-color: #f44336;
+.file-card.deleted { opacity: 0.45; border-color: #f44336; }
+
+/* File icon: rectangle with folded top-right corner */
+.file-icon-rect {
+  width: 44px;
+  height: 56px;
+  background: #e3f2fd;
+  border: 2px solid #90caf9;
+  border-radius: 3px 0 3px 3px;
+  position: relative;
+  flex-shrink: 0;
 }
 
-.file-icon {
-  font-size: 48px;
-  margin-bottom: 8px;
+.fold {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-left: 2px solid #90caf9;
+  border-bottom: 2px solid #90caf9;
+  border-radius: 0 0 0 3px;
+}
+
+/* Folder icon */
+.folder-icon-rect {
+  width: 52px;
+  height: 42px;
+  background: #fff9c4;
+  border: 2px solid #f9a825;
+  border-radius: 0 4px 4px 4px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.folder-icon-rect::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -2px;
+  width: 22px;
+  height: 10px;
+  background: #fff9c4;
+  border: 2px solid #f9a825;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
 }
 
 .file-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   text-align: center;
-  word-break: break-word;
-  max-width: 100%;
+  word-break: break-all;
   color: #333;
+  width: 100%;
 }
 
-.file-type {
-  font-size: 11px;
-  color: #666;
-  text-align: center;
-}
+.file-type { font-size: 11px; color: #888; text-align: center; }
 
 .file-version {
   font-size: 10px;
-  color: #999;
+  color: #aaa;
   background: #f5f5f5;
   padding: 2px 8px;
   border-radius: 10px;
@@ -116,7 +135,7 @@ const formatFileSize = (bytes: number): string => {
   background: #f44336;
   color: white;
   font-size: 10px;
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 4px;
   font-weight: 600;
 }
@@ -125,11 +144,7 @@ const formatFileSize = (bytes: number): string => {
   grid-column: 1 / -1;
   text-align: center;
   padding: 60px 20px;
-  color: #999;
+  color: #bbb;
   font-size: 18px;
-}
-
-.empty-state p {
-  margin: 0;
 }
 </style>

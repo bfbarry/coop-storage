@@ -9,6 +9,7 @@ import (
 
 type Metadata = db.Metadata
 type Account = db.Account
+type CreateAccountParams = db.CreateAccountParams
 type Permission = db.Permission
 type CreateMetadataParams = db.CreateMetadataParams
 type UpdateMetaParams = db.UpdateMetaParams
@@ -26,8 +27,9 @@ type IMetadataRepo interface {
 	DeleteMetadata(ctx context.Context, id int32) error
 
 	// Accounts
-	CreateAccount(ctx context.Context, email string) (*db.Account, error)
+	CreateAccount(ctx context.Context, params *db.CreateAccountParams) (*db.Account, error)
 	GetAccount(ctx context.Context, id int32) (*db.Account, error)
+	GetAccountByClerkID(ctx context.Context, clerkID string) (*db.Account, error)
 	UpdateAccount(ctx context.Context, arg *db.UpdateAccountParams) (*db.Account, error)
 	DeleteAccount(ctx context.Context, id int32) error
 
@@ -96,8 +98,8 @@ func (this *MetadataRepo) DeleteMetadata(ctx context.Context, id int32) error {
 }
 
 // Accounts
-func (this *MetadataRepo) CreateAccount(ctx context.Context, email string) (*db.Account, error) {
-	a, err := this.SQLdb.Queries.CreateAccount(ctx, email)
+func (this *MetadataRepo) CreateAccount(ctx context.Context, params *db.CreateAccountParams) (*db.Account, error) {
+	a, err := this.SQLdb.Queries.CreateAccount(ctx, *params)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create account: %v", err)
 	}
@@ -107,6 +109,13 @@ func (this *MetadataRepo) GetAccount(ctx context.Context, id int32) (*db.Account
 	a, err := this.SQLdb.Queries.GetAccount(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get account: %v", err)
+	}
+	return &a, nil
+}
+func (this *MetadataRepo) GetAccountByClerkID(ctx context.Context, clerkID string) (*db.Account, error) {
+	a, err := this.SQLdb.Queries.GetAccountByClerkID(ctx, &clerkID)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get account by clerk_id: %v", err)
 	}
 	return &a, nil
 }

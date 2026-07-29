@@ -117,14 +117,18 @@ func (this *App) DeleteMetadata(w http.ResponseWriter, r *http.Request) {
 
 func (this *App) PostAccount(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Email string `json:"email"`
+		ClerkID string `json:"clerk_id"`
+		Email   string `json:"email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
-	a, err := this.repo.CreateAccount(r.Context(), body.Email)
+	a, err := this.repo.CreateAccount(r.Context(), &CreateAccountParams{
+		ClerkID: &body.ClerkID,
+		Email:   body.Email,
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create account: %v", err), http.StatusInternalServerError)
 		return
@@ -141,6 +145,20 @@ func (this *App) GetAccount(w http.ResponseWriter, r *http.Request) {
 	a, err := this.repo.GetAccount(r.Context(), int32(id))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get account: %v", err), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+func (this *App) GetAccountByClerkID(w http.ResponseWriter, r *http.Request) {
+	clerkID := r.URL.Query().Get("clerk_id")
+	if clerkID == "" {
+		http.Error(w, "clerk_id query param required", http.StatusBadRequest)
+		return
+	}
+	a, err := this.repo.GetAccountByClerkID(r.Context(), clerkID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Account not found: %v", err), http.StatusNotFound)
 		return
 	}
 	writeJSON(w, http.StatusOK, a)

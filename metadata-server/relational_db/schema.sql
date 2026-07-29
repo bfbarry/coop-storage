@@ -1,5 +1,6 @@
 CREATE TABLE account (
     id SERIAL PRIMARY KEY,
+    clerk_id TEXT UNIQUE,
     email TEXT NOT NULL,
     last_active TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ

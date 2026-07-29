@@ -80,6 +80,7 @@ func main() {
 
 	// Accounts
 	r.Post("/accounts", app.PostAccount)
+	r.Get("/accounts", app.GetAccountByClerkID)
 	r.Get("/accounts/{id}", app.GetAccount)
 	r.Put("/accounts/{id}", app.PutAccount)
 	r.Delete("/accounts/{id}", app.DeleteAccount)

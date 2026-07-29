@@ -46,7 +46,7 @@ func main() {
 	}
 	fmt.Println("Download completed.")
 
-	accountID, err := createAccount("testuser@example.com")
+	accountID, err := createAccount(TEST_USER_ID, "testuser@example.com")
 	if err != nil {
 		log.Printf("Create account failed: %v\n", err)
 		os.Exit(1)
@@ -242,8 +242,8 @@ func uploadFile(token, filename, filepath string) (string, error) {
 	return presign.ObjectKey, nil
 }
 
-func createAccount(email string) (int, error) {
-	body, _ := json.Marshal(map[string]string{"email": email})
+func createAccount(clerkID, email string) (int, error) {
+	body, _ := json.Marshal(map[string]string{"clerk_id": clerkID, "email": email})
 	resp, err := http.Post(METASERVERBASE+"/accounts", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return 0, fmt.Errorf("create account request failed: %w", err)

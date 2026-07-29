@@ -159,7 +159,7 @@ func (q *Queries) GetMetadata(ctx context.Context, id int32) (Metadata, error) {
 	return i, err
 }
 
-const updateUpdate = `-- name: UpdateMeta :one
+const updateMeta = `-- name: UpdateMeta :one
 UPDATE metadata
 SET name = $2,
     version = version + 1
@@ -173,7 +173,7 @@ type UpdateMetaParams struct {
 }
 
 func (q *Queries) UpdateMeta(ctx context.Context, arg UpdateMetaParams) (Metadata, error) {
-	row := q.db.QueryRow(ctx, updateUpdate, arg.ID, arg.Name)
+	row := q.db.QueryRow(ctx, updateMeta, arg.ID, arg.Name)
 	var i Metadata
 	err := row.Scan(
 		&i.ID,

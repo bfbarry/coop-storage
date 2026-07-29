@@ -1,11 +1,15 @@
 -- name: CreateAccount :one
-INSERT INTO account (email)
-VALUES ($1)
+INSERT INTO account (clerk_id, email)
+VALUES ($1, $2)
 RETURNING *;
 
 -- name: GetAccount :one
 SELECT * FROM account
 WHERE id = $1;
+
+-- name: GetAccountByClerkID :one
+SELECT * FROM account
+WHERE clerk_id = $1;
 
 -- name: UpdateAccount :one
 UPDATE account
