@@ -1,0 +1,27 @@
+services:
+  lighthouse:
+    image: nebulaoss/nebula
+    container_name: lighthouse
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    volumes: ["./lighthouse:/config"]
+    networks:
+      nebnet:
+        ipv4_address: 172.28.0.2
+
+  host1:
+    image: nebulaoss/nebula
+    container_name: host1
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    volumes: ["./host1:/config"]
+    depends_on: [lighthouse]
+    networks:
+      nebnet:
+        ipv4_address: 172.28.0.3
+
+networks:
+  nebnet:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
