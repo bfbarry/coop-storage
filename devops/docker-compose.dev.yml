@@ -10,8 +10,21 @@ services:
       - "7678:7678"
     volumes:
       - ../metadata-server:/app
-      - ../metadata-server/db:/app/db
     restart: unless-stopped
+    networks:
+      - storage-network
+
+  psql:
+    image: postgres:15-alpine
+    container_name: psql
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - storage-network
 
@@ -63,7 +76,7 @@ services:
 volumes:
   rustfs-data:
   rustfs-logs:
-      
+  postgres_data:   
   # nginx:
   #   image: nginx:alpine
   #   container_name: nginx

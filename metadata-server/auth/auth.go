@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -42,6 +43,7 @@ func AuthMiddleWare(provider AuthProvider) func(http.Handler) http.Handler {
 			token := extractBearerToken(r)
 			identity, err := provider.ValidateToken(r.Context(), token)
 			if err != nil {
+				log.Printf("auth: token validation failed: %v", err)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}

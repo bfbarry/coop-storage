@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
@@ -36,6 +37,7 @@ func (p *ClerkProvider) ValidateToken(ctx context.Context, token string) (*UserI
 	claims, err := jwt.Verify(ctx, &jwt.VerifyParams{
 		Token:      token,
 		JWKSClient: p.jwksClient,
+		Leeway:     10 * time.Second,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify token: %w", err)
