@@ -5,6 +5,8 @@ services:
     cap_add: [NET_ADMIN]
     devices: ["/dev/net/tun"]
     volumes: ["./lighthouse:/config"]
+    ports:
+      - "4242:4242/udp"
     networks:
       nebnet:
         ipv4_address: 172.28.0.2
